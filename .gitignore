@@ -1,0 +1,30 @@
+# === secrets (NEVER commit) ===
+.key
+.jev_key
+.lightning_env
+cx.key
+*.key
+*.pem
+
+# === large generated artifacts / data / models ===
+model/checkpoints/
+model/checkpoints_gpu/
+student/checkpoints/
+student/tokenizer/
+dataset/*.jsonl
+dataset/*.parquet
+dataset/gliclass/
+*.onnx
+*.safetensors
+*.pt
+*.bin
+
+# === python ===
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# === misc ===
+*.log
+.DS_Store

@@ -1,0 +1,98 @@
+[
+  {
+    "model": "gpt-5.6-sol",
+    "risk": "4/8",
+    "tech": "1/4",
+    "intent": "3/4",
+    "tactic": "3/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 4.62,
+    "score": 0.475
+  },
+  {
+    "model": "vip/glm-5.2",
+    "risk": "5/8",
+    "tech": "1/4",
+    "intent": "1/4",
+    "tactic": "2/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 11.01,
+    "score": 0.463
+  },
+  {
+    "model": "vip/qwen3.7-max",
+    "risk": "4/8",
+    "tech": "1/4",
+    "intent": "1/4",
+    "tactic": "2/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 13.05,
+    "score": 0.4
+  },
+  {
+    "model": "deepseek-v4-pro",
+    "risk": "2/6",
+    "tech": "1/3",
+    "intent": "1/3",
+    "tactic": "2/3",
+    "parsed": "6/8",
+    "err": 2,
+    "unparsed": 0,
+    "lat": 17.59,
+    "score": 0.367
+  },
+  {
+    "model": "gpt-5.6-luna",
+    "risk": "3/8",
+    "tech": "1/4",
+    "intent": "1/4",
+    "tactic": "2/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 4.86,
+    "score": 0.338
+  },
+  {
+    "model": "vip/kimi-k2.7-code",
+    "risk": "4/8",
+    "tech": "0/4",
+    "intent": "1/4",
+    "tactic": "0/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 9.01,
+    "score": 0.275
+  },
+  {
+    "model": "qwen-flash",
+    "risk": "3/8",
+    "tech": "0/4",
+    "intent": "1/4",
+    "tactic": "2/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 3.45,
+    "score": 0.263
+  },
+  {
+    "model": "gpt-6-luna",
+    "risk": "2/8",
+    "tech": "0/4",
+    "intent": "1/4",
+    "tactic": "2/4",
+    "parsed": "8/8",
+    "err": 0,
+    "unparsed": 0,
+    "lat": 4.81,
+    "score": 0.2
+  }
+]
