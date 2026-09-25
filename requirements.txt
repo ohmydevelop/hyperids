@@ -1,0 +1,9 @@
+pyyaml>=6.0
+pandas>=2.0
+pyarrow>=14.0
+# Phase 2+
+# torch
+# transformers
+# datasets
+# peft
+# onnxruntime   # INT8 export
