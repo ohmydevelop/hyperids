@@ -28,3 +28,8 @@ __pycache__/
 # === misc ===
 *.log
 .DS_Store
+
+# === deployment artifacts ===
+export/c_infer_example
+export/*.bin
+export/ort_headers/

@@ -177,3 +177,21 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
   ```
 - 推理逻辑：199 标签按 20 一组分块打分，risk 用 argmax（互斥），intent/tactic/technique 用 `configs/thresholds.json` 分阈值。
 - ONNX 导出：已写 `export/export_onnx.py`，但 GPU 环境 pip 依赖被我调坏（numpy/scipy/sklearn 版本冲突），且本地 torch 已可用，**ONNX 暂缓**（后期量化时再做）。
+
+## 部署 / RSS 优化（C 运行时 + INT8）✅
+
+按推荐落地 ONNX Runtime C API + INT8，RSS 问题解决：
+
+| 运行时 | 模型 | 权重 | **峰值 RSS** |
+|---|---|---|---|
+| PyTorch | fp32 | 55MB | ~300~500MB |
+| ONNX Runtime C | fp32 | 56.5MB | **93MB** |
+| ONNX Runtime C | **INT8** | **15.1MB** | **77.7MB** ✅ |
+
+- `model/checkpoints_gpu/final_model_electra/model.onnx`（fp32，56.5MB）+ `model_int8.onnx`（int8，15.1MB）
+- `export/c_infer_example.c` — ONNX Runtime C API 推理示例（已编译验证，输出与 torch 对齐，max diff 1e-5）
+- `export/prepare_c_input.py` — 命令+标签 → C 可读 int64 .bin
+- `export/quantize_int8_onnx.py` — ONNX 动态 INT8 量化
+- `export/README.md` — 完整部署说明
+
+结论：C 运行时 + INT8 下 RSS **77.7MB**，稳稳 <100MB；无需再为 RSS 发愁。

@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_electra"
 OUT_ONNX = MODEL_DIR / "model.onnx"
 
-CHUNK = 20
-SEQ_LEN = 320
+CHUNK = 50
+SEQ_LEN = 384
 
 
 class LogitsWrapper(nn.Module):
