@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import schema_v2
+import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 SPLIT_SRC = ROOT / "dataset" / "gliclass_collapsed"
 DST = ROOT / "dataset" / "gliclass_v2"
 
-OLD_TO_ACTION = {oid: aid for aid, srcs in schema_v2.action_from_old().items() for oid in srcs}
+OLD_TO_ACTION = {oid: aid for aid, srcs in schema.action_from_old().items() for oid in srcs}
 
 
 def hard_map(old_hard_labels):
@@ -33,8 +33,8 @@ def hard_map(old_hard_labels):
 
 def main():
     DST.mkdir(parents=True, exist_ok=True)
-    all_labels = schema_v2.all_label_ids()
-    desc = schema_v2.descriptions()
+    all_labels = schema.all_label_ids()
+    desc = schema.descriptions()
     (DST / "labels_desc.json").write_text(
         json.dumps([{"label": l, "description": desc[l]} for l in all_labels], ensure_ascii=False, indent=2))
 

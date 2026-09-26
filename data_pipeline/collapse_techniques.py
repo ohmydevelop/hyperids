@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from schema import collapsed_label_ids, collapse_labels, label_descriptions
+from schema_v1 import collapsed_label_ids, collapse_labels, label_descriptions
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "dataset" / "gliclass"

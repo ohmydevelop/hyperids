@@ -4,7 +4,7 @@
     score[i] = command_emb · label_emb[i] / sqrt(d)
     risk group (first 3) → softmax, rest (intent/tactic/technique) → sigmoid
 
-Scoring dimension = 199 (schema.all_label_ids() order), identical to the
+Scoring dimension = 199 (schema_v1.all_label_ids() order), identical to the
 Jev Teacher's soft-target vector, so KD is a straight vector-to-vector fit.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from schema import group_offsets
+from schema_v1 import group_offsets
 
 _OFF = group_offsets()
 RISK_SLICE = slice(*_OFF["risk"])  # 0:3

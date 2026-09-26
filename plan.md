@@ -1,5 +1,12 @@
 # HyperIDs — 恶意命令/脚本分类（最终 v2）
 
+## 命名约定
+
+- **项目/模型名：HyperIDs**（本仓库的产品名）。
+- **基座框架：GLiClass**（第三方多标签分类框架，不是本项目的模型名）。
+- **编码器：`prajjwal1/bert-small`**（GLiClass 内部使用的骨干编码器）。
+- 文档/代码一律写「HyperIDs 模型 = GLiClass 框架 + bert-small」，避免把 GLiClass 当成项目名。
+
 ## 架构定案（v6 / v2 schema —— 最终交付）
 
 ```text
@@ -7,7 +14,7 @@ Frontier LLM (造数据)  →  synthesize / obfuscate / hard_neg / red-team
       ↓ 海量命令/脚本
 Jev Teacher (打软标签)  →  199 维校准概率（唯一软标签来源）
       ↓  确定性映射 199 -> 31
-GLiClass 微调（最终模型）  →  prajjwal1/bert-small（29.8M），verdict 3 + action 28
+HyperIDs 模型（最终）  →  GLiClass 框架 + prajjwal1/bert-small 编码器，verdict 3 + action 28
       ↓
 MITRE 规则表（derive_attck）  →  tactic / technique（确定性推导，不预测）
       ↓
@@ -20,7 +27,7 @@ INT8 量化 → ONNX Runtime C 部署（RSS < 100MB）
 |---|---|
 | Frontier LLM | 造样本 + 红队（不参与端侧推理） |
 | Jev（jev-1.13.0） | 199 维校准软标签（唯一软标签来源） |
-| **GLiClass + bert-small** | 最终模型：verdict（互斥）+ action（多标签） |
+| **HyperIDs 模型（GLiClass 框架 + bert-small 编码器）** | verdict（互斥）+ action（多标签） |
 | **derive_attck 规则表** | action → tactic/technique 确定性映射 |
 
 ### 硬约束（最终，全部达成）
@@ -45,7 +52,7 @@ action: 28   # 多标签：download, execute_local, download_execute,
              # exfiltrate, disable_security, clear_logs, timestomp, account_add,
              # registry_persist, service_persist, schedule_persist, self_propagate,
              # system_probe, environment_setup
-# MITRE tactic/technique：不预测，由 schema_v2.derive_attck(action) 规则表推导
+# MITRE tactic/technique：不预测，由 schema.derive_attck(action) 规则表推导
 ```
 
 > 设计原则：**决策互斥（verdict）+ 事实客观（action）+ MITRE 用规则推导**。
@@ -87,9 +94,9 @@ action: 28   # 多标签：download, execute_local, download_execute,
 
 ## 关键文件
 
-- `label_schema_v2.yaml` / `schema_v2.py` —— v2 schema + MITRE 规则表
+- `label_schema.yaml` / `schema.py` —— v2 schema + MITRE 规则表
 - `data_pipeline/build_dataset_v2.py` / `build_dataset_v2_hard.py`
-- `model/finetune_v2.py` / `model/eval_v2.py`
+- `model/train.py` / `model/eval.py`
 - `configs/`（阈值，如后续需要）、`export/README.md`
 - 历史：`label_schema.yaml`（199）、`plan.md` 旧版、edge/electra 模型保留备查
 

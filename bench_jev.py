@@ -30,7 +30,7 @@ TESTS = [
 
 
 def eval_jev(threshold=0.4, topk=5):
-    from schema import all_label_ids, group_offsets
+    from schema_v1 import all_label_ids, group_offsets
     ids = all_label_ids(); off = group_offsets()
     intent_ids = set(ids[off["intent"][0]:off["intent"][1]])
     tactic_ids = set(ids[off["tactic"][0]:off["tactic"][1]])

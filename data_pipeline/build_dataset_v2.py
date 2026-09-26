@@ -3,15 +3,15 @@
 Derives v2 labels deterministically from the existing Jev 199-dim soft labels
 (soft_labels_50k.jsonl) plus the same train/val/test text split as
 dataset/gliclass_collapsed. MITRE tactic/technique are NOT labels; they are
-derived from actions via schema_v2.action_attck() at inference.
+derived from actions via schema.action_attck() at inference.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from schema import all_label_ids as OLD_IDS
-import schema_v2
+from schema_v1 import all_label_ids as OLD_IDS
+import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 SOFT_JSONL = ROOT / "dataset" / "soft_labels_50k.jsonl"
@@ -28,27 +28,27 @@ def _source_indices(oid: str):
 
 
 # precompute source index sets
-VERDICT_SRC = {vid: _source_indices(oid) for vid, oid in schema_v2.verdict_from_old().items()}
+VERDICT_SRC = {vid: _source_indices(oid) for vid, oid in schema.verdict_from_old().items()}
 ACTION_SRC = {aid: [j for oid in sources for j in _source_indices(oid)]
-              for aid, sources in schema_v2.action_from_old().items()}
+              for aid, sources in schema.action_from_old().items()}
 
 
 def soft_to_v2(old_soft) -> list[float]:
-    v = [sum(old_soft[j] for j in VERDICT_SRC[vid]) for vid in schema_v2.verdict_ids()]
-    a = [min(1.0, sum(old_soft[j] for j in ACTION_SRC[aid])) for aid in schema_v2.action_ids()]
+    v = [sum(old_soft[j] for j in VERDICT_SRC[vid]) for vid in schema.verdict_ids()]
+    a = [min(1.0, sum(old_soft[j] for j in ACTION_SRC[aid])) for aid in schema.action_ids()]
     return v + a
 
 
 def hard_from_v2(v2soft) -> list[str]:
     v = v2soft[:3]
-    verdict = [schema_v2.verdict_ids()[max(range(3), key=lambda i: v[i])]]
-    actions = [aid for i, aid in enumerate(schema_v2.action_ids()) if v2soft[3 + i] >= 0.5]
+    verdict = [schema.verdict_ids()[max(range(3), key=lambda i: v[i])]]
+    actions = [aid for i, aid in enumerate(schema.action_ids()) if v2soft[3 + i] >= 0.5]
     return verdict + actions
 
 
 def hard_map(old_hard_labels) -> list[str]:
     """Fallback for the ~4% texts missing from the soft file."""
-    old_to_action = {oid: aid for aid, srcs in schema_v2.action_from_old().items() for oid in srcs}
+    old_to_action = {oid: aid for aid, srcs in schema.action_from_old().items() for oid in srcs}
     verdict = None
     actions = set()
     for l in old_hard_labels:
@@ -72,8 +72,8 @@ def main():
             d = json.loads(line)
             soft_by_text[d["text"]] = d["soft"]
 
-    all_labels = schema_v2.all_label_ids()
-    desc = schema_v2.descriptions()
+    all_labels = schema.all_label_ids()
+    desc = schema.descriptions()
     (DST / "labels_desc.json").write_text(
         json.dumps([{"label": l, "description": desc[l]} for l in all_labels], ensure_ascii=False, indent=2))
 

@@ -10,7 +10,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from schema import all_label_ids, label_descriptions, group_offsets
+from schema_v1 import all_label_ids, label_descriptions, group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
 LABEL_JSONL = ROOT / "dataset" / "soft_labels_50k.jsonl"

@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 
 from model.predict import Predictor
 from data_pipeline import llm, prompts, jev_client, jev_labels
-from schema import all_label_ids, group_offsets
+from schema_v1 import all_label_ids, group_offsets
 
 IDS = all_label_ids()
 OFF = group_offsets()

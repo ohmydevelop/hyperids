@@ -3,7 +3,7 @@
 The gateway models do not reliably emit canonical ids (they produce
 "malicious", "suspicious", free-text intent names, MITRE ids without the
 "technique." prefix, etc.). This module maps any such surface form back to
-exact ids in label_schema.yaml and rejects anything unmappable.
+exact ids in label_schema_v1.yaml and rejects anything unmappable.
 
 All matching is deterministic and schema-driven — no extra LLM calls.
 """
@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-from schema import all_label_ids, label_descriptions
+from schema_v1 import all_label_ids, label_descriptions
 
 _RISK_ALIASES = {
     "benign": "risk.benign",

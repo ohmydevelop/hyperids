@@ -1,7 +1,7 @@
 # 部署（最终 v2）
 
 最终模型 v2：`prajjwal1/bert-small`（29.8M）+ 31 标签（verdict 3 + action 28）。
-MITRE tactic/technique 由 `schema_v2.derive_attck()` 规则表推导，不在模型中预测。
+MITRE tactic/technique 由 `schema.derive_attck()` 规则表推导，不在模型中预测。
 
 ## RSS / 体积（实测）
 
@@ -18,7 +18,7 @@ MITRE tactic/technique 由 `schema_v2.derive_attck()` 规则表推导，不在�
 - `model/checkpoints_gpu/final_model_v2/model.onnx` —— fp32（external data）
 - `model/checkpoints_gpu/final_model_v2/model_int8.onnx` —— INT8（单文件）
 - `export/c_infer_example_v2.c` —— C 推理示例（N_LOGITS=31, SEQ_LEN=320）
-- `export/prepare_c_input.py` —— 命令+标签 tokenize 成 int64 .bin（当前为 edge 版，v2 用 `eval_v2.py` 同款拼接即可）
+- `export/prepare_c_input.py` —— 命令+标签 tokenize 成 int64 .bin（当前为 edge 版，v2 用 `eval.py` 同款拼接即可）
 
 ## 使用流程
 
@@ -39,7 +39,7 @@ python export/quantize_int8_onnx.py --in model/checkpoints_gpu/final_model_v2/mo
 ## 推理约定
 
 31 标签一次前向输出 `[1,31]` logits：前 3 个是 verdict（argmax），后 28 个是 action
-（阈值 0.5）。拿到 action 集合后调用 `schema_v2.derive_attck(actions)` 得到 tactic/technique。
+（阈值 0.5）。拿到 action 集合后调用 `schema.derive_attck(actions)` 得到 tactic/technique。
 
 ## 历史备注
 

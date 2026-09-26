@@ -7,7 +7,7 @@ Decomposition (one request, evaluated in parallel):
     technique -> 141 Noul questions
     total     -> 197 questions -> one 199-dim probability vector per command
 
-The 199-dim vector order is exactly schema.all_label_ids() order
+The 199-dim vector order is exactly schema_v1.all_label_ids() order
 (risk 3, intent 41, tactic 14, technique 141), so it plugs straight into
 Student distillation as soft targets.
 """
@@ -16,7 +16,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from data_pipeline import jev_client
-from schema import all_label_ids, group_offsets, label_descriptions
+from schema_v1 import all_label_ids, group_offsets, label_descriptions
 
 _OFF = group_offsets()
 _IDS = all_label_ids()
@@ -32,7 +32,7 @@ RISK_KEY = "__risk__"
 
 @lru_cache(maxsize=1)
 def build_questions() -> dict:
-    """Build the cached Jev question dict from label_schema.yaml."""
+    """Build the cached Jev question dict from label_schema_v1.yaml."""
     q: dict = {
         RISK_KEY: {
             "type": "choice",
