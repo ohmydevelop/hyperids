@@ -1,0 +1,250 @@
+version: 2.0.0
+task_type: multi_label_classification
+verdict:
+- id: verdict.benign
+  description: Legitimate administrative, operational, or development command with no malicious intent and no security impact.
+- id: verdict.suspicious
+  description: Dual-use or ambiguous command; could be benign administration or attacker tradecraft, context alone does not confirm malice.
+- id: verdict.malicious
+  description: Command clearly performs offensive, evasive, destructive, or exfiltrative activity consistent with attacker tradecraft.
+action:
+- id: action.download
+  description: Download a file or payload from a remote source without executing it.
+  from_old:
+  - intent.download
+  tactics:
+  - command_and_control
+  techniques:
+  - T1105
+- id: action.execute_local
+  description: Execute a local file, script, or binary.
+  from_old:
+  - intent.execute
+  tactics:
+  - execution
+  techniques:
+  - T1059
+- id: action.download_execute
+  description: Download and immediately execute a remote payload.
+  from_old:
+  - intent.download_execute
+  tactics:
+  - execution
+  - command_and_control
+  techniques:
+  - T1204
+  - T1105
+- id: action.command_and_control
+  description: Beacon or check in to a remote command-and-control channel.
+  from_old:
+  - intent.command_and_control
+  tactics:
+  - command_and_control
+  techniques:
+  - T1071
+- id: action.obfuscate
+  description: Encode, encrypt, or otherwise obfuscate a command or payload.
+  from_old:
+  - intent.encode_obfuscate
+  tactics:
+  - defense_evasion
+  techniques:
+  - T1027
+- id: action.file_operation
+  description: Create, modify, move, copy, or destroy files.
+  from_old:
+  - intent.file_operation
+  tactics:
+  - collection
+  - impact
+  techniques:
+  - T1005
+  - T1485
+- id: action.process_inject
+  description: Inject code into a running process.
+  from_old:
+  - intent.process_inject
+  tactics:
+  - defense_evasion
+  - privilege_escalation
+  techniques:
+  - T1055
+- id: action.network_scan
+  description: Scan hosts or ports to discover targets or services.
+  from_old:
+  - intent.network_scan
+  tactics:
+  - discovery
+  techniques:
+  - T1046
+- id: action.brute_force
+  description: Guess credentials against a service or account.
+  from_old:
+  - intent.brute_force
+  tactics:
+  - credential_access
+  techniques:
+  - T1110
+- id: action.reverse_shell
+  description: Open a shell by connecting out from the victim to an attacker.
+  from_old:
+  - intent.reverse_shell
+  tactics:
+  - initial_access
+  - command_and_control
+  techniques:
+  - T1059
+- id: action.bind_shell
+  description: Open a listening shell on the victim for an attacker to connect into.
+  from_old:
+  - intent.bind_shell
+  tactics:
+  - initial_access
+  - command_and_control
+  techniques:
+  - T1059
+- id: action.web_shell
+  description: Deploy a web-accessible shell or backdoor.
+  from_old:
+  - intent.web_shell
+  tactics:
+  - persistence
+  - initial_access
+  techniques:
+  - T1505
+- id: action.backdoor
+  description: Install a persistent remote-access backdoor.
+  from_old:
+  - intent.backdoor
+  tactics:
+  - persistence
+  - command_and_control
+  techniques:
+  - T1543
+- id: action.keylog
+  description: Capture keystrokes or credentials from input.
+  from_old:
+  - intent.keylog
+  tactics:
+  - collection
+  - credential_access
+  techniques:
+  - T1056
+- id: action.credential_dump
+  description: Read, dump, or extract credentials from a system.
+  from_old:
+  - technique.T1003
+  tactics:
+  - credential_access
+  techniques:
+  - T1003
+- id: action.ransomware
+  description: Encrypt files or systems for extortion.
+  from_old:
+  - intent.ransomware
+  tactics:
+  - impact
+  techniques:
+  - T1486
+- id: action.cryptomining
+  description: Mine cryptocurrency on victim resources.
+  from_old:
+  - intent.cryptomining
+  tactics:
+  - impact
+  techniques:
+  - T1496
+- id: action.exfiltrate
+  description: Stage and transfer data out of the victim environment.
+  from_old:
+  - intent.data_staging
+  - intent.file_transfer
+  tactics:
+  - exfiltration
+  techniques:
+  - T1041
+- id: action.disable_security
+  description: Disable or tamper with security controls, AV, firewall, or logging.
+  from_old:
+  - intent.disable_security
+  tactics:
+  - defense_evasion
+  techniques:
+  - T1562
+- id: action.clear_logs
+  description: Delete or clear system or application logs.
+  from_old:
+  - intent.clear_logs
+  tactics:
+  - defense_evasion
+  techniques:
+  - T1070
+- id: action.timestomp
+  description: Alter file timestamps to evade detection.
+  from_old:
+  - intent.timestomp
+  tactics:
+  - defense_evasion
+  techniques:
+  - T1070
+- id: action.account_add
+  description: Create a new local or domain account.
+  from_old:
+  - intent.add_account
+  tactics:
+  - persistence
+  - privilege_escalation
+  techniques:
+  - T1136
+- id: action.registry_persist
+  description: Establish persistence via registry keys or startup entries.
+  from_old:
+  - intent.modify_registry
+  tactics:
+  - persistence
+  techniques:
+  - T1547
+- id: action.service_persist
+  description: Establish persistence via services or daemons.
+  from_old:
+  - intent.service_creation
+  tactics:
+  - persistence
+  techniques:
+  - T1543
+- id: action.schedule_persist
+  description: Establish persistence via scheduled tasks or cron.
+  from_old:
+  - intent.scheduled_task
+  tactics:
+  - persistence
+  - privilege_escalation
+  techniques:
+  - T1053
+- id: action.self_propagate
+  description: Propagate to other hosts autonomously.
+  from_old:
+  - intent.self_propagation
+  tactics:
+  - lateral_movement
+  techniques:
+  - T1570
+- id: action.system_probe
+  description: Enumerate system, environment, or security-tool information.
+  from_old:
+  - intent.system_info
+  - intent.probe_security_tools
+  tactics:
+  - discovery
+  techniques:
+  - T1082
+  - T1518
+- id: action.environment_setup
+  description: Prepare an environment or wrapper for later exploitation.
+  from_old:
+  - intent.environment_setup
+  tactics:
+  - execution
+  - defense_evasion
+  techniques:
+  - T1059

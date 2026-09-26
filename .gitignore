@@ -38,3 +38,4 @@ export/ort_headers/
 export/c_infer_example_edge
 dataset/gliclass_collapsed/
 export/c_infer_example_bert
+dataset/gliclass_v2/
