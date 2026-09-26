@@ -12,7 +12,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from schema import all_label_ids, group_offsets
+from schema_v1 import all_label_ids, group_offsets
 
 BASE = "https://ai-api-gateway.app.baizhi.cloud/api/openai/chat/completions"
 KEY = Path(".key").read_text().strip()

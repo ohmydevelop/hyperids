@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 import torch
 from gliclass import GLiClassModel, ZeroShotClassificationPipeline
 from transformers import AutoTokenizer
-from schema import all_label_ids
+from schema_v1 import all_label_ids
 
 IDS = all_label_ids()
 

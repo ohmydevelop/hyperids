@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoTokenizer
-from schema import all_label_ids, label_descriptions
+from schema_v1 import all_label_ids, label_descriptions
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"

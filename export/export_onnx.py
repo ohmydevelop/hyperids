@@ -40,7 +40,7 @@ def main():
 
     from gliclass import GLiClassModel
     from transformers import AutoTokenizer
-    from schema import all_label_ids, collapsed_label_ids
+    from schema_v1 import all_label_ids, collapsed_label_ids
 
     model = GLiClassModel.from_pretrained(args.model_dir).eval()
     tok = AutoTokenizer.from_pretrained(args.model_dir)

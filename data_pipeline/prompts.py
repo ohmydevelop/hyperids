@@ -8,7 +8,7 @@ Prompt strategy (from configs/model_selection.md):
 """
 from __future__ import annotations
 
-from schema import all_label_ids, group_offsets
+from schema_v1 import all_label_ids, group_offsets
 
 _OFF = group_offsets()
 _ID = all_label_ids()

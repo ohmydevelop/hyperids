@@ -1,7 +1,7 @@
 """Fine-tune GLiClass on the v2 schema (verdict 3 + action 28 = 31 labels).
 
 Base: prajjwal1/bert-small (~29.8M). MITRE tactic/technique are derived from
-actions via schema_v2.action_attck(), not predicted.
+actions via schema.action_attck(), not predicted.
 """
 from __future__ import annotations
 

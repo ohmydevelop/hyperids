@@ -1,7 +1,7 @@
 """Evaluate the v2 model (verdict 3 + action 28 = 31 labels).
 
 verdict: argmax (mutually exclusive). action: threshold (single, default 0.5).
-MITRE tactic/technique are derived via schema_v2.derive_attck(), not evaluated.
+MITRE tactic/technique are derived via schema.derive_attck(), not evaluated.
 """
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from pathlib import Path
 import torch
 from gliclass import GLiClassModel
 from transformers import AutoTokenizer
-import schema_v2
+import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v2"
 DATA_DIR = ROOT / "dataset" / "gliclass_v2"
 
-IDS = schema_v2.all_label_ids()
-OFF = schema_v2.group_offsets()
+IDS = schema.all_label_ids()
+OFF = schema.group_offsets()
 VERDICT = IDS[OFF["verdict"][0]: OFF["verdict"][1]]
 ACTIONS = IDS[OFF["action"][0]: OFF["action"][1]]
 
@@ -60,7 +60,7 @@ def main():
             sc = score_all(model, tok, c, device)
             verdict = max(VERDICT, key=lambda l: sc.get(l, -99))
             acts = [a for a in ACTIONS if sc.get(a, -99) >= args.threshold]
-            att = schema_v2.derive_attck(acts)
+            att = schema.derive_attck(acts)
             print(f"\n{c}\n  verdict  : {verdict}\n  actions  : {acts}\n  tactics  : {att['tactics']}\n  techniques: {att['techniques']}")
         return
 

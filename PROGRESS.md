@@ -304,9 +304,9 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 
 ## v2 重设计标签体系（verdict 3 + action 28 = 31）✅
 
-- `label_schema_v2.yaml` + `schema_v2.py`：verdict 互斥 3 + action 多标签 28；MITRE tactic/technique 由 `derive_attck()` 规则表推导，不再让模型预测。
+- `label_schema.yaml` + `schema.py`：verdict 互斥 3 + action 多标签 28；MITRE tactic/technique 由 `derive_attck()` 规则表推导，不再让模型预测。
 - 数据：`dataset/gliclass_v2`（train 65,480 / val 5,978 / test 5,978，28 action 全有样本，平均 ~2.1 action/样本）。
-- 训练：`model/finetune_v2.py`，bert-small 29.8M，4 epochs，L4；产物 `model/checkpoints_gpu/final_model_v2`。
+- 训练：`model/train.py`，bert-small 29.8M，4 epochs，L4；产物 `model/checkpoints_gpu/final_model_v2`。
 
 ### 测试集（5,978，verdict argmax + action@0.5）
 | 指标 | v2（31 标签） | 对照 |
@@ -328,3 +328,15 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 
 **最终 v2（可部署）**：bert-small 29.8M，INT8 ONNX 30.2MB，RSS ~96MB；
 test verdict_acc 0.917 / action micro-F1 0.909，MITRE 由规则表确定性推导。
+
+## 命名规范化 + 项目结构重构（收尾）
+
+- 明确：**项目/模型名 = HyperIDs；GLiClass 只是第三方多标签分类框架；骨干编码器 = `prajjwal1/bert-small`**。
+- Schema 文件重命名：当前 `schema.py`（31 标签，源 `label_schema.yaml`），历史 `schema_v1.py`（199 标签，源 `label_schema_v1.yaml`）。
+- 当前入口：`model/train.py` / `model/eval.py` / `model/predict.py`。
+- 历史实验归档到 `model/experiments/`：
+  - `v1_electra_199.py`（electra-small，199）
+  - `v2_gliclass_edge_199.py`（gliclass-edge-v3.0 / Ettin-32m，199）
+  - `v3_bert_132.py`（bert-small，132）
+  - 及对应的 eval/tune/infer/prepare/prune 脚本。
+- `model/README.md` 记录目录结构与训练演化表。

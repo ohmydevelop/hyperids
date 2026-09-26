@@ -16,7 +16,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
-from schema import all_label_ids
+from schema_v1 import all_label_ids
 from student.model import TinyGLiClass
 from student import tokenizer as tok_mod
 

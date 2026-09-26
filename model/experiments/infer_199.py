@@ -10,7 +10,7 @@ import torch
 
 from gliclass import GLiClassModel, ZeroShotClassificationPipeline
 from transformers import AutoTokenizer
-from schema import all_label_ids, group_offsets
+from schema_v1 import all_label_ids, group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints" / "final_model"

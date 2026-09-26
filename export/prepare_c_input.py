@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from transformers import AutoTokenizer
-from schema import all_label_ids
+from schema_v1 import all_label_ids
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"

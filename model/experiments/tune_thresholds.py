@@ -12,7 +12,7 @@ from pathlib import Path
 import torch
 from gliclass import GLiClassModel
 from transformers import AutoTokenizer
-from schema import all_label_ids, group_offsets, collapsed_label_ids, collapsed_group_offsets
+from schema_v1 import all_label_ids, group_offsets, collapsed_label_ids, collapsed_group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
