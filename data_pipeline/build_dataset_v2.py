@@ -62,7 +62,12 @@ def hard_map(old_hard_labels) -> list[str]:
 
 
 def main():
-    DST.mkdir(parents=True, exist_ok=True)
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", type=str, default=str(DST))
+    args = ap.parse_args()
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
     soft_by_text = {}
     with open(SOFT_JSONL) as f:
         for line in f:
@@ -74,7 +79,7 @@ def main():
 
     all_labels = schema.all_label_ids()
     desc = schema.descriptions()
-    (DST / "labels_desc.json").write_text(
+    (out_dir / "labels_desc.json").write_text(
         json.dumps([{"label": l, "description": desc[l]} for l in all_labels], ensure_ascii=False, indent=2))
 
     for split in ("train", "val", "test"):
@@ -94,10 +99,10 @@ def main():
             if v2 is not None:
                 item["soft_v2"] = v2
             out.append(item)
-        (DST / f"{split}.json").write_text(json.dumps(out, ensure_ascii=False))
+        (out_dir / f"{split}.json").write_text(json.dumps(out, ensure_ascii=False))
         print(f"{split}: {len(out)} examples (soft {with_soft}, hard-fallback {missing})")
 
-    print(f"labels_desc: {len(all_labels)} labels -> {DST/'labels_desc.json'}")
+    print(f"labels_desc: {len(all_labels)} labels -> {out_dir/'labels_desc.json'}")
 
 
 if __name__ == "__main__":

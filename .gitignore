@@ -40,3 +40,4 @@ dataset/gliclass_collapsed/
 export/c_infer_example_bert
 dataset/gliclass_v2/
 export/c_infer_example_v2
+dataset/gliclass_v2_kd/
