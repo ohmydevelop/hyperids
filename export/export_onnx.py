@@ -35,15 +35,16 @@ def main():
     ap.add_argument("--out", type=str, default=str(OUT_ONNX))
     ap.add_argument("--chunk", type=int, default=CHUNK)
     ap.add_argument("--seq_len", type=int, default=SEQ_LEN)
+    ap.add_argument("--collapsed", action="store_true")
     args = ap.parse_args()
 
     from gliclass import GLiClassModel
     from transformers import AutoTokenizer
-    from schema import all_label_ids
+    from schema import all_label_ids, collapsed_label_ids
 
     model = GLiClassModel.from_pretrained(args.model_dir).eval()
     tok = AutoTokenizer.from_pretrained(args.model_dir)
-    IDS = all_label_ids()
+    IDS = collapsed_label_ids() if args.collapsed else all_label_ids()
 
     # build one sample input with exactly `chunk` labels
     labels = IDS[: args.chunk]

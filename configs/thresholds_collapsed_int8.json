@@ -1,0 +1,13 @@
+{
+  "risk_bias": {
+    "benign": 7.0,
+    "suspicious": 0.0,
+    "malicious": 0.0
+  },
+  "thresholds": {
+    "risk": -0.75,
+    "intent": 2.25,
+    "tactic": 0.25,
+    "technique": -0.5
+  }
+}
