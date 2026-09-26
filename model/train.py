@@ -15,6 +15,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 from transformers import AutoTokenizer, AutoConfig
 from gliclass import GLiClassModel, GLiClassModelConfig
+import schema
 from gliclass.training import TrainingArguments, Trainer
 from gliclass.data_processing import DataCollatorWithPadding, GLiClassDataset, AugmentationConfig
 
@@ -34,7 +35,7 @@ def load_json(p: Path):
         return json.load(f)
 
 
-def build_model(device):
+def build_model(device, focal_alpha=-1.0, focal_gamma=-1.0):
     tokenizer = AutoTokenizer.from_pretrained(ENCODER)
     encoder_config = AutoConfig.from_pretrained(ENCODER)
     config = GLiClassModelConfig(
@@ -58,8 +59,8 @@ def build_model(device):
         dropout=0.3,
         shuffle_labels=True,
         use_segment_embeddings=False,
-        focal_loss_alpha=-1,
-        focal_loss_gamma=-1,
+        focal_loss_alpha=focal_alpha,
+        focal_loss_gamma=focal_gamma,
         focal_loss_reduction="none",
         contrastive_loss_coef=0.0,
     )
@@ -102,6 +103,10 @@ def main():
     ap.add_argument("--test_run", action="store_true")
     ap.add_argument("--resume_from", type=str, default=None)
     ap.add_argument("--save_name", type=str, default="final_model_v2")
+    ap.add_argument("--data_dir", type=str, default=str(DATA_DIR))
+    ap.add_argument("--kd", action="store_true", help="use soft_v2 as soft targets (train split only)")
+    ap.add_argument("--focal_gamma", type=float, default=2.0)
+    ap.add_argument("--focal_alpha", type=float, default=0.25)
     args = ap.parse_args()
 
     device = args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
@@ -112,16 +117,28 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(args.resume_from)
         print(f"resumed from {args.resume_from}")
     else:
-        model, tokenizer = build_model(device)
+        model, tokenizer = build_model(device, args.focal_alpha, args.focal_gamma)
 
-    train_data = load_json(DATA_DIR / "train.json")
-    val_data = load_json(DATA_DIR / "val.json")
-    test_data = load_json(DATA_DIR / "test.json")
+    data_dir = Path(args.data_dir)
+    train_data = load_json(data_dir / "train.json")
+    val_data = load_json(data_dir / "val.json")
+    test_data = load_json(data_dir / "test.json")
     if args.test_run:
         train_data, val_data = train_data[:200], val_data[:64]
     print(f"data: train={len(train_data)} val={len(val_data)} test={len(test_data)}")
 
-    label_to_desc = {d["label"]: d for d in load_json(DATA_DIR / "labels_desc.json")}
+    if args.kd:
+        all_labels = schema.all_label_ids()
+        def to_soft(ex):
+            sv = ex.get("soft_v2")
+            if sv is not None:
+                return {**ex, "true_labels": {l: float(sv[i]) for i, l in enumerate(all_labels)}}
+            return ex
+        n_soft = sum(1 for e in train_data if e.get("soft_v2") is not None)
+        train_data = [to_soft(e) for e in train_data]
+        print(f"KD: {n_soft}/{len(train_data)} train examples use soft targets")
+
+    label_to_desc = {d["label"]: d for d in load_json(data_dir / "labels_desc.json")}
 
     aug = AugmentationConfig(enabled=True)
     no_aug = AugmentationConfig(enabled=False)
