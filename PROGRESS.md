@@ -319,3 +319,12 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 > 标签去噪（去掉 intent↔tactic 重复、去掉 141 子技术）后，verdict 准确率 +4.7pt，
 > action F1 0.91。demo：reverse shell → malicious + reverse_shell/command_and_control →
 > T1059/T1071；`df -h` → benign + system_probe → T1082/T1518。
+
+### 部署（v2）
+- ONNX：`final_model_v2/model.onnx`（fp32，118MB external data）+ `model_int8.onnx`（30.2MB）。
+- C 运行时峰值 RSS：fp32 **114.7MB** / **INT8 96.2MB（<100MB ✅）**。
+- INT8 与 fp32 几乎无损：verdict_acc **0.9187**（fp32 0.9167）、action micro-F1 **0.9099**（fp32 0.909）。
+  —— 与旧 132 标签的 int8 崩坏不同，31 标签 + 更简单 head 让 INT8 基本零损失。
+
+**最终 v2（可部署）**：bert-small 29.8M，INT8 ONNX 30.2MB，RSS ~96MB；
+test verdict_acc 0.917 / action micro-F1 0.909，MITRE 由规则表确定性推导。
