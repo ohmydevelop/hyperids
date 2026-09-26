@@ -16,6 +16,7 @@ from schema import all_label_ids, group_offsets, collapsed_label_ids, collapsed_
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
+DATA_DIR = ROOT / "dataset" / "gliclass"
 IDS = all_label_ids()
 OFF = group_offsets()
 GROUPS = {g: IDS[OFF[g][0]: OFF[g][1]] for g in ("risk", "intent", "tactic", "technique")}

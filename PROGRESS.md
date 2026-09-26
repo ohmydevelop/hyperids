@@ -269,3 +269,35 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 - `model/finetune_bert_small.py`：GLiClass 从零搭在 `prajjwal1/bert-small`（29.82M）上，训练 132 标签；L4 已启动（4 epochs，batch 32，lr 5e-5）。
 - `model/eval_grouped.py` / `model/tune_thresholds.py` 增加 `--collapsed` 与 `--data_dir`。
 - 已推 GitHub（`124f2c1` / `09015eb`）。
+
+## bert-small（29.8M）+ 132 标签：训练完成 ✅
+
+### 训练
+- `model/finetune_bert_small.py`，L4，4 epochs，batch 32，lr 5e-5。
+- 产出 `model/checkpoints_gpu/final_model_bert_small_collapsed/`（29.82M，已下载本地）。
+- train-time test micro-F1 0.9324（单阈值 0.5，口径偏乐观）。
+
+### fp32 测试集评估（5,978 条，132 标签口径，GPU 分块+分组阈值）
+| 指标 | bert-small 132 | （对照 edge 199） |
+|---|---|---|
+| overall micro-F1 | **0.7911** | 0.7836 |
+| risk micro-F1 | **0.8582** | 0.8388 |
+| intent micro-F1 | **0.7785** | 0.7716 |
+| tactic micro-F1 | 0.7951 | 0.8300 |
+| **technique micro-F1** | **0.7899** | 0.7514 |
+| risk_acc(argmax) | **0.8694** | 0.8684 |
+
+> 折叠子技术后，technique 从 edge-199 的 0.7514 → 0.7899；且模型只有 29.8M（≤30M）。
+> fp32 阈值：`configs/thresholds_collapsed.json`（risk -0.75 / intent 2.25 / tactic 3.0 / technique 0.75）。
+
+### 部署 / RSS
+- ONNX fp32：`final_model_bert_small_collapsed/model.onnx`（118MB external data）→ C 峰值 RSS **~116MB**。
+- ONNX INT8：`model_int8.onnx`（30.2MB）→ C 峰值 RSS **93.3MB（<100MB ✅）**。
+- INT8 与 fp32 逐点 max diff ~0.54，但 risk 头有明显系统偏差（benign 被判成 suspicious）。
+- **INT8 校准修复**：risk logits 给 benign 加 +7.0 偏置后，risk_acc 从 0.58 → **0.8484**（接近 fp32 0.8694）。
+- INT8 分组阈值（已重调）：`configs/thresholds_collapsed_int8.json`（intent 2.25 / tactic 0.25 / technique -0.5 / risk 偏置 +7 benign）。
+- 结论：bert-small 是「≤30M + int8 能到 93MB」的可部署候选；代价是 int8 后 intent/tactic/technique 比 fp32 约低 10~13 个点，后续可上 QAT 补回。
+
+### 已推 GitHub
+- 折叠 schema/数据管线（`124f2c1`）、eval/tune 适配（`09015eb`）、进度（`120e107`）。
+- 新增 `model/finetune_bert_small.py`、`data_pipeline/collapse_techniques.py`。
