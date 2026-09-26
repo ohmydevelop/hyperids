@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 from schema import all_label_ids, group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "model" / "checkpoints" / "final_model"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
 IDS = all_label_ids()
 OFF = group_offsets()
 GROUPS = {g: IDS[OFF[g][0]: OFF[g][1]] for g in ("risk", "intent", "tactic", "technique")}
@@ -27,9 +27,10 @@ def score_all(model, tok, cmd: str, device="cuda"):
     for i in range(0, len(IDS), CHUNK):
         chunk = IDS[i:i + CHUNK]
         s = "".join(f"<<LABEL>>{l}" for l in chunk) + "<<SEP>>" + cmd
-        enc = tok(s, return_tensors="pt", truncation=True, max_length=384).to(device)
+        enc = tok(s, return_tensors="pt", truncation=True, max_length=320).to(device)
         with torch.no_grad():
-            out = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
+            out = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"],
+                        max_num_classes=len(chunk))
         lg = out.logits.flatten()
         for j, l in enumerate(chunk):
             if j < lg.shape[0]:
@@ -72,7 +73,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = GLiClassModel.from_pretrained(args.model_dir).to(device).eval()
-    tok = AutoTokenizer.from_pretrained(args.model_dir)
+    tok = AutoTokenizer.from_pretrained(args.model_dir, add_prefix_space=True)
 
     data = json.loads((ROOT / "dataset" / "gliclass" / "val.json").read_text())[: args.limit]
     print(f"evaluating {len(data)} val samples on {device} ...")

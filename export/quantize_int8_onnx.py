@@ -7,8 +7,8 @@ import onnxruntime as ort
 from onnxruntime.quantization import quantize_dynamic, QuantType
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_electra" / "model.onnx"
-OUT_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_electra" / "model_int8.onnx"
+MODEL_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_edge" / "model.onnx"
+OUT_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_edge" / "model_int8.onnx"
 
 
 def main():

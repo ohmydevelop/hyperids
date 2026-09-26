@@ -16,7 +16,7 @@ from transformers import AutoTokenizer
 from schema import all_label_ids, group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_electra"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
 THRESHOLDS_PATH = ROOT / "configs" / "thresholds.json"
 
 IDS = all_label_ids()
@@ -30,7 +30,7 @@ class Predictor:
     def __init__(self, model_dir=MODEL_DIR, thresholds_path=THRESHOLDS_PATH, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model = GLiClassModel.from_pretrained(str(model_dir)).to(self.device).eval()
-        self.tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
+        self.tokenizer = AutoTokenizer.from_pretrained(str(model_dir), add_prefix_space=True)
         self.thresholds = json.loads(Path(thresholds_path).read_text())
 
     def predict(self, command: str) -> dict:
@@ -40,7 +40,8 @@ class Predictor:
             s = "".join(f"<<LABEL>>{l}" for l in chunk) + "<<SEP>>" + command
             enc = self.tokenizer(s, return_tensors="pt", truncation=True, max_length=SEQ_LEN).to(self.device)
             with torch.no_grad():
-                out = self.model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
+                out = self.model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"],
+                            max_num_classes=len(chunk))
             lg = out.logits.flatten()
             for j, l in enumerate(chunk):
                 if j < lg.shape[0]:

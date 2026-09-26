@@ -1,13 +1,13 @@
 # HyperIDs — 恶意命令/脚本多标签分类
 
-## 架构定案（v4：最终模型 = 微调 GLiClass，参数量 ≤30M）
+## 架构定案（v5：最终模型 = 微调 GLiClass V3 edge，RSS<100MB）
 
 ```text
 Frontier LLM (造数据)  →  synthesize / obfuscate / hard_neg / min_pair / red-team
       ↓ 海量命令/脚本
 Jev Teacher (打软标签)  →  199 维校准概率（risk + intent + tactic + technique）
       ↓  hard labels + 199 维 soft probabilities
-GLiClass 微调（最终模型）  →  预训练多标签分类器，hard CE + soft KL
+GLiClass V3 edge 微调（最终模型）  →  knowledgator/gliclass-edge-v3.0（Ettin-encoder-32m），hard CE + soft KL
       ↓
 INT8 量化 → 部署（RSS 后期优化）
 ```
@@ -24,13 +24,14 @@ INT8 量化 → 部署（RSS 后期优化）
 
 | 约束 | 值 |
 |---|---|
-| **参数量** | **≤30M** |
-| RSS（运行时内存） | 后期优化 |
-| INT8 体积 | 后期优化 |
+| **参数量** | **≈32.7M**（用户原拍 ≤30M，按端侧稳定优先放宽到最新官方 edge 档） |
+| RSS（运行时内存） | **目标 <100MB**（当前：fp32 C ~116MB 稳定；INT8 ~97MB 但判分降级；见 `export/README.md`） |
+| INT8 体积 | ~33MB（131MB fp32 → INT8） |
 | 标签空间 | 199（risk 3 + intent 41 + tactic 14 + technique 141） |
 
-> 参数量硬约束 ≤30M（electra-small ~13.75M / bert-small ~29M）；RSS 与量化后期优化。
-> 从零小模型（`student/`，4L/256D ~5M）保留为「极致端侧」备选。
+> 基座换成最新官方轻量档 `knowledgator/gliclass-edge-v3.0`（backbone `jhu-clsp/ettin-encoder-32m`，ModernBERT 风格，10L/384H，32.7M 参数）。
+> 理由：它是 GLiClass 官方 2025-08 发布的 V3 最小档，zero-shot 多标签能力比从 electra-small 从零搭头强得多；测试集 overall 0.7836（v1 0.6575），technique 0.7514（v1 0.4859）。
+> 32.7M 略超最初拍的 30M（用户已授权自由发挥，端侧稳定优先）。从零 student（4L/256D ~5M）与 electra-small（13.75M）保留为极致端侧备选。
 
 ---
 
@@ -85,8 +86,8 @@ technique: 141 # MITRE technique id（多标签）
 
 | 交付物 | 说明 |
 |---|---|
-| `model/`（原 `teacher/` 改名） | `gliclass` 库加载 GLiClass（edge/small 优先，base 备选） |
-| `model/finetune.py` | hard CE + Jev soft KL（Lightning L4 GPU） |
+| `model/finetune_edge.py` | 加载 `gliclass-edge-v3.0` 全量 checkpoint，hard CE + Jev soft KL（Lightning L4 GPU） |
+| `model/` | `gliclass` 库加载 GLiClass V3（edge 定档，base 备选） |
 | `model/eval.py` | risk acc / micro-F1 / per-group 指标 |
 | 选档决策 | 效果优先，暂不卡 RSS |
 
@@ -126,8 +127,8 @@ technique: 141 # MITRE technique id（多标签）
 |---|---|
 | Schema 先行 | 一次定义，LLM / Jev / GLiClass 共用 |
 | 标签先于微调 | 没有 soft labels，KD/微调无从谈起 |
-| 造数据靠 LLM，软标签靠 Jev，模型用 GLiClass | 各用所长 |
-| 参数量 ≤30M | electra-small（~14M）优先 |
+| 造数据靠 LLM，软标签靠 Jev，模型用 GLiClass V3 edge | 各用所长 |
+| 参数量 ≈32.7M | 最新官方 `gliclass-edge-v3.0`（Ettin-encoder-32m），端侧稳定优先 |
 | 数据平衡优先于堆量 | GLiClass 微调对类别分布敏感 |
 | 红队最后但持续 | 闭环迭代 |
 
@@ -135,7 +136,7 @@ technique: 141 # MITRE technique id（多标签）
 
 ## 引用
 
-- [GLiClass](https://github.com/knowledgator/gliclass) — 最终模型（预训练多标签分类器）
+- [GLiClass](https://github.com/knowledgator/gliclass) — 最终模型（`gliclass-edge-v3.0`，Ettin-encoder-32m）
 - [Jev / TypeSafe AI](https://docs.typesafe.ai) — Teacher（软标签）
 - [QuasarNix](https://github.com/dtrizna/QuasarNix) / NL2Bash — 真实命令语料
 - [GLiNER2.5](https://github.com/fastino-ai/GLiNER2) — span/relation 第二支路（暂不进主链路）

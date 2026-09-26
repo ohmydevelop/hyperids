@@ -33,3 +33,6 @@ __pycache__/
 export/c_infer_example
 export/*.bin
 export/ort_headers/
+
+# compiled edge inference binary
+export/c_infer_example_edge

@@ -1,18 +1,18 @@
 {
   "risk": {
-    "threshold": -0.5,
-    "f1": 0.7707
+    "threshold": -1.5,
+    "f1": 0.7231
   },
   "intent": {
-    "threshold": 2.0,
-    "f1": 0.6032
+    "threshold": 1.25,
+    "f1": 0.7123
   },
   "tactic": {
-    "threshold": 2.75,
-    "f1": 0.6637
+    "threshold": 2.5,
+    "f1": 0.7947
   },
   "technique": {
-    "threshold": 2.0,
-    "f1": 0.5152
+    "threshold": 0.75,
+    "f1": 0.7249
   }
 }

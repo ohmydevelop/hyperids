@@ -11,11 +11,11 @@ import torch
 import torch.nn as nn
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_electra"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
 OUT_ONNX = MODEL_DIR / "model.onnx"
 
-CHUNK = 50
-SEQ_LEN = 384
+CHUNK = 25
+SEQ_LEN = 320
 
 
 class LogitsWrapper(nn.Module):
@@ -66,7 +66,7 @@ def main():
         input_names=["input_ids", "attention_mask"],
         output_names=["logits"],
         dynamic_axes={"input_ids": {0: "batch"}, "attention_mask": {0: "batch"}},
-        opset_version=17,
+        opset_version=18,
         do_constant_folding=True,
     )
     print(f"→ {args.out}")
