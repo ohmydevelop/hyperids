@@ -60,3 +60,16 @@ edge 模型 `max_num_classes=25`，每次前向最多 25 个标签。199 个标�
 每块拼成 `<<LABEL>>label...<<SEP>>command`，输出 25 维 logits，前 k 个对应本块 k 个标签。
 `model/predict.py` 已按 `max_num_classes=len(chunk)` 打分；risk 用 argmax（互斥），
 intent/tactic/technique 用 `configs/thresholds.json` 的分组阈值。
+
+## 词表裁剪尝试（保留原结果）
+
+新增 `model/prune_vocab.py`：把 edge 模型 50,370 的 token embedding 裁剪到实际用到的
+~10,746 个 token（label 描述 + 命令语料 + 单字符 + 特殊 token 的闭包），其余映射到 `[UNK]`。
+
+- **精度**：对测试命令/标签，剪裁前后 logits **逐点一致（max diff 0.0）**，指标不损失。
+- **模型文件**：fp32 ONNX 从 132MB → **71.6MB**（`final_model_edge_pruned/model_reduced.onnx` + `old_to_new.npy`）。
+- **RSS 实测**：C 运行时峰值 VmHWM 仍约 **126MB**，没有降到 <100MB。原因是该架构下
+  ONNX Runtime 的运行时/MatMul 权重底噪 ~55MB+，剪掉 embedding 只省磁盘、不显著省 RSS。
+
+结论：词表裁剪能把**体积**减半且**零精度损失**，但仅靠它无法把 edge 模型压到 RSS<100MB；
+严格 <100MB 仍需 QAT 或换更小/更易量化的基座。原 `final_model_edge` 结果未动。
