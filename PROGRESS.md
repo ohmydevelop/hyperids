@@ -301,3 +301,21 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 ### 已推 GitHub
 - 折叠 schema/数据管线（`124f2c1`）、eval/tune 适配（`09015eb`）、进度（`120e107`）。
 - 新增 `model/finetune_bert_small.py`、`data_pipeline/collapse_techniques.py`。
+
+## v2 重设计标签体系（verdict 3 + action 28 = 31）✅
+
+- `label_schema_v2.yaml` + `schema_v2.py`：verdict 互斥 3 + action 多标签 28；MITRE tactic/technique 由 `derive_attck()` 规则表推导，不再让模型预测。
+- 数据：`dataset/gliclass_v2`（train 65,480 / val 5,978 / test 5,978，28 action 全有样本，平均 ~2.1 action/样本）。
+- 训练：`model/finetune_v2.py`，bert-small 29.8M，4 epochs，L4；产物 `model/checkpoints_gpu/final_model_v2`。
+
+### 测试集（5,978，verdict argmax + action@0.5）
+| 指标 | v2（31 标签） | 对照 |
+|---|---|---|
+| **verdict_acc** | **0.9167** | 旧 risk_acc 0.8694 |
+| **action micro-F1** | **0.9090** | — |
+| action precision | 0.9351 | — |
+| action recall | 0.8843 | — |
+
+> 标签去噪（去掉 intent↔tactic 重复、去掉 141 子技术）后，verdict 准确率 +4.7pt，
+> action F1 0.91。demo：reverse shell → malicious + reverse_shell/command_and_control →
+> T1059/T1071；`df -h` → benign + system_probe → T1082/T1518。
