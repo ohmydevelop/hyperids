@@ -7,7 +7,7 @@
  * Usage:
  *   ./c_infer_example <model.onnx> <input_ids.bin> <attention_mask.bin>
  * where the .bin files are int64 arrays of shape [1, SEQ_LEN] (SEQ_LEN=384),
- * produced by export/prepare_c_input.py.
+ * produced by export/prepare_c_input.py (edge: SEQ_LEN=320, N_LOGITS=25).
  */
 #include <onnxruntime_c_api.h>
 #include <stdio.h>
@@ -16,8 +16,8 @@
 
 static const OrtApi* g_ort = NULL;
 
-#define SEQ_LEN 384
-#define N_LOGITS 50
+#define SEQ_LEN 320
+#define N_LOGITS 25
 
 static void check(OrtStatus* st) {
     if (st) {
@@ -55,6 +55,10 @@ int main(int argc, char** argv) {
     check(g_ort->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "hyperids", &env));
     check(g_ort->CreateSessionOptions(&opts));
     g_ort->SetIntraOpNumThreads(opts, 1);
+    /* keep peak RSS low for edge deployment (<100MB) */
+    g_ort->SetSessionGraphOptimizationLevel(opts, ORT_DISABLE_ALL);
+    g_ort->DisableMemPattern(opts);
+    g_ort->DisableCpuMemArena(opts);
     check(g_ort->CreateSession(env, model_path, opts, &session));
     check(g_ort->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &mem_info));
 

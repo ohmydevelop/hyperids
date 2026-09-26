@@ -9,10 +9,10 @@ from transformers import AutoTokenizer
 from schema import all_label_ids
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_electra"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
 IDS = all_label_ids()
-SEQ_LEN = 384
-CHUNK = 50
+SEQ_LEN = 320
+CHUNK = 25
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
     ap.add_argument("--out_dir", type=str, default=str(ROOT / "export"))
     args = ap.parse_args()
 
-    tok = AutoTokenizer.from_pretrained(str(MODEL_DIR))
+    tok = AutoTokenizer.from_pretrained(str(MODEL_DIR), add_prefix_space=True)
     labels = IDS[:CHUNK]
     s = "".join(f"<<LABEL>>{l}" for l in labels) + "<<SEP>>" + args.command
     enc = tok(s, return_tensors="np", truncation=True, max_length=SEQ_LEN, padding="max_length")

