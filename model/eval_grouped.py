@@ -12,7 +12,7 @@ from pathlib import Path
 import torch
 from gliclass import GLiClassModel
 from transformers import AutoTokenizer
-from schema import all_label_ids, group_offsets
+from schema import all_label_ids, group_offsets, collapsed_label_ids, collapsed_group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
@@ -22,6 +22,12 @@ DATA_DIR = ROOT / "dataset" / "gliclass"
 IDS = all_label_ids()
 OFF = group_offsets()
 GROUPS = {g: IDS[OFF[g][0]: OFF[g][1]] for g in ("risk", "intent", "tactic", "technique")}
+
+def _use_collapsed():
+    global IDS, OFF, GROUPS
+    IDS = collapsed_label_ids()
+    OFF = collapsed_group_offsets()
+    GROUPS = {g: IDS[OFF[g][0]: OFF[g][1]] for g in ("risk", "intent", "tactic", "technique")}
 CHUNK = 20
 SEQ_LEN = 320
 
@@ -59,15 +65,19 @@ def main():
     ap.add_argument("--model_dir", type=str, default=str(MODEL_DIR))
     ap.add_argument("--split", type=str, default="test")
     ap.add_argument("--thresholds", type=str, default=str(THRESHOLDS))
+    ap.add_argument("--data_dir", type=str, default=str(DATA_DIR))
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--collapsed", action="store_true")
     args = ap.parse_args()
+    if args.collapsed:
+        _use_collapsed()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = GLiClassModel.from_pretrained(args.model_dir).to(device).eval()
     tok = AutoTokenizer.from_pretrained(args.model_dir, add_prefix_space=True)
     th = json.loads(Path(args.thresholds).read_text())
 
-    data = json.loads((DATA_DIR / f"{args.split}.json").read_text())
+    data = json.loads((Path(args.data_dir) / f"{args.split}.json").read_text())
     if args.limit:
         data = data[: args.limit]
     print(f"evaluating {len(data)} {args.split} samples on {device} ...", flush=True)

@@ -12,13 +12,19 @@ from pathlib import Path
 import torch
 from gliclass import GLiClassModel
 from transformers import AutoTokenizer
-from schema import all_label_ids, group_offsets
+from schema import all_label_ids, group_offsets, collapsed_label_ids, collapsed_group_offsets
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_edge"
 IDS = all_label_ids()
 OFF = group_offsets()
 GROUPS = {g: IDS[OFF[g][0]: OFF[g][1]] for g in ("risk", "intent", "tactic", "technique")}
+
+def _use_collapsed():
+    global IDS, OFF, GROUPS
+    IDS = collapsed_label_ids()
+    OFF = collapsed_group_offsets()
+    GROUPS = {g: IDS[OFF[g][0]: OFF[g][1]] for g in ("risk", "intent", "tactic", "technique")}
 CHUNK = 20
 
 
@@ -68,14 +74,18 @@ def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--model_dir", type=str, default=str(MODEL_DIR))
+    ap.add_argument("--data_dir", type=str, default=str(DATA_DIR))
     ap.add_argument("--limit", type=int, default=600)
+    ap.add_argument("--collapsed", action="store_true")
     args = ap.parse_args()
+    if args.collapsed:
+        _use_collapsed()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = GLiClassModel.from_pretrained(args.model_dir).to(device).eval()
     tok = AutoTokenizer.from_pretrained(args.model_dir, add_prefix_space=True)
 
-    data = json.loads((ROOT / "dataset" / "gliclass" / "val.json").read_text())[: args.limit]
+    data = json.loads((Path(args.data_dir) / "val.json").read_text())[: args.limit]
     print(f"evaluating {len(data)} val samples on {device} ...")
 
     scores_true = []
