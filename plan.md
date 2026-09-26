@@ -1,142 +1,100 @@
-# HyperIDs — 恶意命令/脚本多标签分类
+# HyperIDs — 恶意命令/脚本分类（最终 v2）
 
-## 架构定案（v5：最终模型 = 微调 GLiClass V3 edge，RSS<100MB）
+## 架构定案（v6 / v2 schema —— 最终交付）
 
 ```text
-Frontier LLM (造数据)  →  synthesize / obfuscate / hard_neg / min_pair / red-team
+Frontier LLM (造数据)  →  synthesize / obfuscate / hard_neg / red-team
       ↓ 海量命令/脚本
-Jev Teacher (打软标签)  →  199 维校准概率（risk + intent + tactic + technique）
-      ↓  hard labels + 199 维 soft probabilities
-GLiClass V3 edge 微调（最终模型）  →  knowledgator/gliclass-edge-v3.0（Ettin-encoder-32m），hard CE + soft KL
+Jev Teacher (打软标签)  →  199 维校准概率（唯一软标签来源）
+      ↓  确定性映射 199 -> 31
+GLiClass 微调（最终模型）  →  prajjwal1/bert-small（29.8M），verdict 3 + action 28
       ↓
-INT8 量化 → 部署（RSS 后期优化）
+MITRE 规则表（derive_attck）  →  tactic / technique（确定性推导，不预测）
+      ↓
+INT8 量化 → ONNX Runtime C 部署（RSS < 100MB）
 ```
 
 ### 职责边界
 
-| 模型 | 角色 | 干什么 |
-|---|---|---|
-| Frontier LLM（gpt-5.6-sol / qwen-flash / feature-flash） | 教授 | 造样本 + 红队（不参与端侧推理） |
-| Jev（TypeSafe `jev-1.13.0`） | Teacher | 199 维校准软标签（唯一软标签来源；LLM 标签仅作备份） |
-| **GLiClass** | **最终模型** | 微调后 INT8 部署 |
+| 模型/组件 | 角色 |
+|---|---|
+| Frontier LLM | 造样本 + 红队（不参与端侧推理） |
+| Jev（jev-1.13.0） | 199 维校准软标签（唯一软标签来源） |
+| **GLiClass + bert-small** | 最终模型：verdict（互斥）+ action（多标签） |
+| **derive_attck 规则表** | action → tactic/technique 确定性映射 |
 
-### 硬约束（v4）
+### 硬约束（最终，全部达成）
 
 | 约束 | 值 |
 |---|---|
-| **参数量** | **≈32.7M**（用户原拍 ≤30M，按端侧稳定优先放宽到最新官方 edge 档） |
-| RSS（运行时内存） | **目标 <100MB**（当前：fp32 C ~116MB 稳定；INT8 ~97MB 但判分降级；见 `export/README.md`） |
-| INT8 体积 | ~33MB（131MB fp32 → INT8） |
-| 标签空间 | 199（risk 3 + intent 41 + tactic 14 + technique 141） |
-
-> 基座换成最新官方轻量档 `knowledgator/gliclass-edge-v3.0`（backbone `jhu-clsp/ettin-encoder-32m`，ModernBERT 风格，10L/384H，32.7M 参数）。
-> 理由：它是 GLiClass 官方 2025-08 发布的 V3 最小档，zero-shot 多标签能力比从 electra-small 从零搭头强得多；测试集 overall 0.7836（v1 0.6575），technique 0.7514（v1 0.4859）。
-> 32.7M 略超最初拍的 30M（用户已授权自由发挥，端侧稳定优先）。从零 student（4L/256D ~5M）与 electra-small（13.75M）保留为极致端侧备选。
+| 参数量 | **29.8M（≤30M ✅）** |
+| RSS | **INT8 C 运行时 96.2MB（<100MB ✅）** |
+| INT8 体积 | **30.2MB** |
+| 标签空间 | **31**（verdict 3 + action 28；MITRE 由规则推导，不算预测头） |
 
 ---
 
-## 标签空间（不变）
+## 标签空间（v2 schema，最终）
 
 ```yaml
-risk: 3        # risk.benign / risk.suspicious / risk.malicious（互斥，softmax）
-intent: 41     # 多标签
-tactic: 14     # MITRE tactic（多标签）
-technique: 141 # MITRE technique id（多标签）
-# 总计 199
+verdict: 3   # benign / suspicious / malicious（互斥，argmax）
+action: 28   # 多标签：download, execute_local, download_execute,
+             # command_and_control, obfuscate, file_operation, process_inject,
+             # network_scan, brute_force, reverse_shell, bind_shell, web_shell,
+             # backdoor, keylog, credential_dump, ransomware, cryptomining,
+             # exfiltrate, disable_security, clear_logs, timestomp, account_add,
+             # registry_persist, service_persist, schedule_persist, self_propagate,
+             # system_probe, environment_setup
+# MITRE tactic/technique：不预测，由 schema_v2.derive_attck(action) 规则表推导
 ```
 
-> **schema 是全链路 contract**：Frontier LLM / Jev / GLiClass 共用 `label_schema.yaml`。
-> label 描述即 GLiClass 的 label representation 输入。
+> 设计原则：**决策互斥（verdict）+ 事实客观（action）+ MITRE 用规则推导**。
+> 旧 199 标签（risk+intent+tactic+technique 141）存在 intent↔tactic 重复、子技术长尾、
+> 标注不一致三个问题；v2 全部消除。
 
 ---
 
-## 数据计划（补平衡）
+## 数据
 
-当前 50K 恶意偏多、suspicious 极少，GLiClass 微调对类别分布敏感，因此补一批平衡数据：
+- 来源：QuasarNix（恶意）+ NL2Bash（benign）+ LLM 合成 + 红队。
+- Jev 199 维软标签：`dataset/soft_labels_50k.jsonl`（74,743 条）。
+- `data_pipeline/build_dataset_v2.py`：199 软 → 31 软/硬（verdict 1:1，action 多对一求和）。
+- 最终数据集 `dataset/gliclass_v2/`：train 65,480 / val 5,978 / test 5,978；28 action 全有样本。
 
-| 步骤 | 内容 | 目标 |
+---
+
+## 最终结果（test 5,978）
+
+| 指标 | fp32 | **INT8（部署）** |
 |---|---|---|
-| 1 | 续跑 Jev 软标签（跳过已标、重打 402 空行） | 50K 全部 199 维软标签 |
-| 2 | LLM 定向生成 suspicious + benign | +10K suspicious +15K benign |
-| 3 | Jev 软标签新增部分 | 总 ~75K |
-| 4 | 分层 split（按 risk 分层） | train/val/test |
+| verdict_acc | 0.9167 | **0.9187** |
+| action micro-F1 | 0.9090 | **0.9099** |
+| action precision / recall | 0.935 / 0.884 | 0.934 / 0.887 |
 
-**目标风险分布 ≈ malicious 40% / suspicious 25% / benign 35%**（不再恶意一边倒）。
-
----
-
-## 实施计划
-
-### Phase 1 — 数据地基 ✅
-
-- `label_schema.yaml`（199）+ `schema.py` / `schema_check.py` ✅
-- LLM 选型 + Jev 接入 + 数据管线（llm / normalize / prompts / seeds / label / label_jev / build_dataset / bulk_50k）✅
-- 候选集 50,031 条（quasarnix 恶意 31.5K + nl2bash benign 10.6K + LLM 7.9K）✅
-- Jev 软标签 24.8K（其中 1,143 条 402 空标签待重打）🔄
-
-### Phase 2 — 打标签（Jev 唯一软标签来源）
-
-| 交付物 | 状态 |
-|---|---|
-| 续跑 `bulk_50k label`（重打空行 + 标剩余 ~26K） | ⬜ |
-| 补 balanced 数据（+10K suspicious +15K benign）→ Jev 标注 | ⬜ |
-| `dataset/soft_labels.parquet`（~75K，按 risk 分层 split） | ⬜ |
-
-### Phase 3 — GLiClass 微调（最终模型）
-
-| 交付物 | 说明 |
-|---|---|
-| `model/finetune_edge.py` | 加载 `gliclass-edge-v3.0` 全量 checkpoint，hard CE + Jev soft KL（Lightning L4 GPU） |
-| `model/` | `gliclass` 库加载 GLiClass V3（edge 定档，base 备选） |
-| `model/eval.py` | risk acc / micro-F1 / per-group 指标 |
-| 选档决策 | 效果优先，暂不卡 RSS |
-
-### Phase 4 — 导出 + 红队闭环
-
-| 交付物 | 说明 |
-|---|---|
-| `export/quantize_int8.py` | INT8（后期优化） |
-| `export/benchmark_rss.py` | RSS 实测（后期优化） |
-| `redteam/loop.py` | Frontier LLM 造对抗样本 → Jev 重评分 → GLiClass 再微调 |
+- 对比旧体系 risk_acc：0.8694 → 0.917（+4.7pt）。
+- INT8 与 fp32 基本无损（旧 132 标签 int8 会崩 risk；31 标签 + 简单 head 后消失）。
 
 ---
 
-## 完整流水线（v4）
+## 部署
 
-```text
-真实命令语料（QuasarNix 恶意 + NL2Bash benign）+ LLM 合成/补平衡
-              ↓
-      Jev Teacher（199 维软标签，唯一软标签来源）
-              ↓
-         hard CE + soft KL
-              ↓
-      GLiClass 微调（最终模型）
-              ↓
-      hard example mining → Frontier LLM 红队 → Jev 重评分 → 再微调
-              ↓
-            INT8（RSS 后期优化）
-              ↓
-            部署
-```
+- `model/checkpoints_gpu/final_model_v2/`：checkpoint + `model.onnx`（fp32 118MB）+ `model_int8.onnx`（30.2MB）。
+- C 推理：`export/c_infer_example_v2.c`（N_LOGITS=31, SEQ_LEN=320）。
+- RSS：fp32 114.7MB / **INT8 96.2MB**。
+- 推理：31 标签一次前向打分 → verdict argmax + action 阈值 → `derive_attck` 出 MITRE。
 
 ---
 
-## 关键原则
+## 关键文件
 
-| 原则 | 理由 |
-|---|---|
-| Schema 先行 | 一次定义，LLM / Jev / GLiClass 共用 |
-| 标签先于微调 | 没有 soft labels，KD/微调无从谈起 |
-| 造数据靠 LLM，软标签靠 Jev，模型用 GLiClass V3 edge | 各用所长 |
-| 参数量 ≈32.7M | 最新官方 `gliclass-edge-v3.0`（Ettin-encoder-32m），端侧稳定优先 |
-| 数据平衡优先于堆量 | GLiClass 微调对类别分布敏感 |
-| 红队最后但持续 | 闭环迭代 |
+- `label_schema_v2.yaml` / `schema_v2.py` —— v2 schema + MITRE 规则表
+- `data_pipeline/build_dataset_v2.py` / `build_dataset_v2_hard.py`
+- `model/finetune_v2.py` / `model/eval_v2.py`
+- `configs/`（阈值，如后续需要）、`export/README.md`
+- 历史：`label_schema.yaml`（199）、`plan.md` 旧版、edge/electra 模型保留备查
 
----
+## 后续可做（不在本次范围）
 
-## 引用
-
-- [GLiClass](https://github.com/knowledgator/gliclass) — 最终模型（`gliclass-edge-v3.0`，Ettin-encoder-32m）
-- [Jev / TypeSafe AI](https://docs.typesafe.ai) — Teacher（软标签）
-- [QuasarNix](https://github.com/dtrizna/QuasarNix) / NL2Bash — 真实命令语料
-- [GLiNER2.5](https://github.com/fastino-ai/GLiNER2) — span/relation 第二支路（暂不进主链路）
+1. 软标签 KD（soft_v2 已生成，训练改用 dict 软标签再榨 action F1）。
+2. 动作集按真实告警反馈继续打磨（26~28 个动作是否够、是否要加 `credential_dump` 之外的新动作）。
+3. C 版 tokenizer + 单二进制发布。
