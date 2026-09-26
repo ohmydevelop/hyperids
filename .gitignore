@@ -36,3 +36,4 @@ export/ort_headers/
 
 # compiled edge inference binary
 export/c_infer_example_edge
+dataset/gliclass_collapsed/
