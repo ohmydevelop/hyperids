@@ -258,3 +258,14 @@ Demo 表现正常：`df -h`→benign、`systemctl restart nginx`→benign、reve
 - RSS：C 运行时 VmHWM 仍约 **126MB**（ORT 运行时/MatMul 底噪高），未达 <100MB。
 - 结论：词表裁剪=体积减半+零精度损失；但要 RSS<100MB 仍需 QAT 或更小/更易量化基座。
 - 原 `final_model_edge`（32.7M，test overall 0.7836）保持不变；代码/文档已推送到私有仓库 `ohmydevelop/hyperids`。
+
+## 标签裁剪 + bert-small 训练（进行中）
+
+- 决策：technique 子技术 `.NNN` 折叠到父技术 → **199 → 132 标签**（risk 3 + intent 41 + tactic 14 + technique 74）。
+  - 数据事实：141 technique 中 8 个零样本、20 个 ≤5 样本、67 个是长尾子技术；父技术只有 74 个。
+- `schema.py`：新增 `technique_parent_map()/collapsed_label_ids()/collapsed_group_offsets()/collapse_labels()`。
+- `data_pipeline/collapse_techniques.py`：从原 199 数据生成 `dataset/gliclass_collapsed/`（原数据未动）。
+  - train 65,480 / val 5,978 / test 5,978；technique 74 个、72 个有样本、median support 1392（原 442）。
+- `model/finetune_bert_small.py`：GLiClass 从零搭在 `prajjwal1/bert-small`（29.82M）上，训练 132 标签；L4 已启动（4 epochs，batch 32，lr 5e-5）。
+- `model/eval_grouped.py` / `model/tune_thresholds.py` 增加 `--collapsed` 与 `--data_dir`。
+- 已推 GitHub（`124f2c1` / `09015eb`）。
