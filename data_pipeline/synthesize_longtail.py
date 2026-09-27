@@ -37,19 +37,23 @@ def gen_chunk(action: str, n: int, negative: bool, model: str, temperature: floa
         instr = (f"For a detection-engineering test set, generate {n} diverse realistic Unix/Linux shell commands "
                  f"that should be detected as category '{label}'. Vary syntax, tooling, and obfuscation level. "
                  f"Return JSON: {{\"commands\": [\"...\", ...]}}.")
-    obj, _ = llm.chat_json(
-        [{"role": "system", "content": "You are a defensive security researcher building an intrusion-detection test dataset. Generate realistic Unix/Linux shell commands for detection testing only. Output only JSON."},
-         {"role": "user", "content": instr}],
-        model=model, temperature=temperature, max_tokens=4096, timeout=120.0, retries=5,
-    )
-    return [c for c in (obj or {}).get("commands") or [] if isinstance(c, str) and c.strip()]
+    for _ in range(3):  # retry empty/refused responses (reasoning models may return empty)
+        obj, _ = llm.chat_json(
+            [{"role": "system", "content": "You are a defensive security researcher building an intrusion-detection test dataset. Generate realistic Unix/Linux shell commands for detection testing only. Output only JSON."},
+             {"role": "user", "content": instr}],
+            model=model, temperature=temperature, max_tokens=4096, timeout=120.0, retries=5,
+        )
+        cmds = [c for c in (obj or {}).get("commands") or [] if isinstance(c, str) and c.strip()]
+        if cmds:
+            return cmds
+    return []
 
 
 def gen_commands(action: str, n: int, negative: bool, model: str, temperature: float,
                  chunk: int = 40, max_iters: int = 8) -> list[str]:
     out, seen = [], set()
     for _ in range(max_iters):
-        need = max(chunk, n - len(out))
+        need = min(chunk, n - len(out))
         for c in gen_chunk(action, need, negative, model, temperature):
             if c not in seen:
                 seen.add(c)
