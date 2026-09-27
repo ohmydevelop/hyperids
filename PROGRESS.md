@@ -340,3 +340,25 @@ test verdict_acc 0.917 / action micro-F1 0.909，MITRE 由规则表确定性推�
   - `v3_bert_132.py`（bert-small，132）
   - 及对应的 eval/tune/infer/prepare/prune 脚本。
 - `model/README.md` 记录目录结构与训练演化表。
+
+
+## 优化探索（KD / focal / 长尾增强）—— 结论：全部否决，v2 硬标签基线为最终
+
+在 v2 基线（verdict_acc 0.917 / action F1 0.909）上尝试三条路线，均未超基线（test 5,978）：
+
+| 方案 | verdict_acc | action micro-F1 |
+|---|---|---|
+| **硬标签基线（最终）** | **0.917** | **0.909** |
+| + 软标签 KD | 0.861 | 0.745 |
+| + KD + focal(γ=2, α=0.25) | 0.895 | 0.787 |
+| + 长尾增强数据（硬标签，+1960 样本） | 0.917 | 0.853 |
+
+- KD：软目标使模型拟合概率而非学决策，recall 崩、verdict argmax 变差；合并 action 的软概率（求和拼装）带噪声。
+- focal：alpha=0.25 在稀疏多标签下方向反，压低正样本权重。
+- 长尾增强：公开数据(GTFOBins/PayloadsAllTheThings/静态工具) + deepseek-v4-flash 不稳→改 gpt-5.6-sol 合成 + Jev 29 题 31 维标注；硬负样本使模型变保守，且冻结 test 无稀有 action 正样本可验证。
+
+新增产物（保留备查）：
+- `data_pipeline/fetch_public.py`、`jev_labels_v2.py`（29 题 31 维）、`merge_longtail.py`、`synthesize_longtail.py`
+- `dataset/gliclass_v2_aug/`（增强数据）、`dataset/gliclass_v2_kd/`（KD 数据）、`dataset/public_candidates.jsonl`
+
+最终交付：`model/checkpoints_gpu/final_model_v2/`（29.8M，INT8 30.2MB，RSS 96MB，verdict_acc 0.917 / action F1 0.909）。
