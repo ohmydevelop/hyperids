@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import random
 from collections import Counter
 from pathlib import Path
 
@@ -156,7 +157,8 @@ def main():
     if args.limit:
         new_samples = new_samples[: args.limit]
 
-    # 90% train / 10% val
+    # 90% train / 10% val (shuffle so no action-order bias)
+    random.Random(42).shuffle(new_samples)
     n_val = max(1, int(len(new_samples) * 0.1))
     aug_val, aug_train = new_samples[:n_val], new_samples[n_val:]
     out_train = train + aug_train
