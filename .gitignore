@@ -41,3 +41,9 @@ export/c_infer_example_bert
 dataset/gliclass_v2/
 export/c_infer_example_v2
 dataset/gliclass_v2_kd/
+dataset/public_raw/
+dataset/gliclass_v2_aug/
+dataset/public_candidates.jsonl
+dataset/public_labeled.jsonl
+dataset/synth_longtail.jsonl
+dataset/synth_smoke.jsonl
