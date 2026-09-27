@@ -362,3 +362,48 @@ test verdict_acc 0.917 / action micro-F1 0.909，MITRE 由规则表确定性推�
 - `dataset/gliclass_v2_aug/`（增强数据）、`dataset/gliclass_v2_kd/`（KD 数据）、`dataset/public_candidates.jsonl`
 
 最终交付：`model/checkpoints_gpu/final_model_v2/`（29.8M，INT8 30.2MB，RSS 96MB，verdict_acc 0.917 / action F1 0.909）。
+
+## 外部公开数据评测（OOD，未训练）
+
+用训练分布之外的公开语料检验泛化，只评测、不训练。数据：Cowrie 蜜罐 16,517 / GTFOBins 810 / PayloadsAllTheThings 45 / NL2Bash 10,623。
+
+**核心结论**：
+- 良性端几乎零误报：NL2Bash **malicious FPR 0.05%**（10,623 条仅 5 条），benign acc 81.3%。
+- 明确恶意端强：反弹/下载执行/C2 子集 malicious 召回 **75.9%**、非良性 **90.4%**；干净反弹 shell 5/5 判恶意（P=1.00）。
+- 明确恶意 vs 良性 **ROC-AUC 0.9704 / PR-AUC 0.7603**；vs 双用途 ROC-AUC 0.9036。
+- 真实攻击流（Cowrie）：benign 49.7% / suspicious 43.3% / malicious 7.0%，`derive_attck` 规则命中 72.9%（侦察命令判 benign/suspicious 属合理）。
+- **真实盲区**：GTFOBins 风格 SUID 提权解释器逃逸（`R -e 'system("/bin/sh")'` 等）召回仅 **30.4%** → 最明确的可提升点。
+
+口径说明：GTFOBins `functions[].code` 大量是 dual-use 文件操作，PayloadsAllTheThings 提取混入散文，直接按整体算 malicious_recall（15%）会严重低估，故按「明确恶意子集」重新口径。
+
+产物：`data_pipeline/fetch_eval.py`、`eval_external.py`、`analyze_external.py`、`EXTERNAL_EVAL.md`、`dataset/external_eval/`、`dataset/external_eval_results/`。
+
+## SUID 提权逃逸补数据实验（针对外部评测盲区）
+
+**背景**：外部评测发现 GTFOBins 风格 SUID 提权解释器逃逸（`R -e 'system("/bin/sh")'` 等）被模型 49% 误判 benign。补数据消除盲区。
+
+**数据（无泄漏）**：
+- 评测集冻结：`gtfobins.jsonl` 810 条只测试，绝不进训练。
+- 合成：LLM 网关对 shell-escape payload 会 redact（gpt-5.6-sol→`[REDACTED]`）或安全拒绝（deepseek-v4-flash 不稳定），改**确定性模板生成** `data_pipeline/generate_suid_variants.py`（命令+硬标签一次性产出，零 LLM）。
+- Jev 定标 325 条变体 → 保留 277 条非 benign（suspicious 272 / malicious 5，action 以 execute_local 为主）。**Jev 质检 30 条显示：模板/LLM 的 malicious 标签 0/30 与 Jev 一致**——单命令文本无 SUID 上下文，Jev 正确判 suspicious，故采纳 Jev 口径。
+- 合并：`merge_suid.py` → `gliclass_v2_suid`（train 65480→65757，+277；val/test 冻结）。
+
+**结果（eval_suid_compare.py，test 5978 + 外部 gtfobins 810，同口径）**：
+
+| 指标 | baseline | suid(+277) | Δ |
+|---|---|---|---|
+| 内测 verdict_acc | 0.9207 | 0.9047 | **−1.6pp** |
+| 内测 action micro-F1 | 0.9103 | 0.8842 | **−2.6pp** |
+| 外部 shell_escape 恶意召回 | 0.304 | 0.240 | −6.4pp |
+| 外部 shell_escape 非良性召回 | 0.494 | **0.899** | **+40.5pp** ✅ |
+
+**归因**：verdict_acc 下降几乎全来自 benign→suspicious 误判增加（117→206，+89）；**benign→malicious 误报几乎不变（1→2）**，端侧恶意告警 FPR 仍极低。本质是"SUID 逃逸命令"与"合法双用途命令"在纯文本层面不可分——补数据把盲区命令从 benign 纠到 suspicious，同时把部分合法双用途命令也推到了 suspicious。
+
+**结论**：典型的召回-精度 trade-off。盲区召回目标达成（+40.5pp），代价是内测整体小幅回退（但恶意误报率未升）。是否采用 suid 版取决于部署优先级（漏报优先 vs 整体精度优先）。
+
+产物：`data_pipeline/generate_suid_variants.py`、`label_suid.py`、`merge_suid.py`、`synthesize_suid.py`(LLM 合成，redact 放弃)、`synthesize_suid_labeled.py`(LLM+标签，拒绝不稳定)、`eval_suid_compare.py`、`model/checkpoints_gpu/final_model_v2_suid/`。
+
+## 最终决策（SUID 补数据实验收尾）
+
+**保持 baseline 为最终交付**：`model/checkpoints_gpu/final_model_v2/`（INT8 ONNX 30.2MB，RSS 96MB，verdict_acc 0.917 / action F1 0.909）。
+SUID 增强版 `final_model_v2_suid/` 保留为**漏报敏感场景的备选**（非良性召回 +40.5pp，但内测 −1.6/−2.6pp），不替换 baseline。

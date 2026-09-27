@@ -47,3 +47,17 @@ dataset/public_candidates.jsonl
 dataset/public_labeled.jsonl
 dataset/synth_longtail.jsonl
 dataset/synth_smoke.jsonl
+
+# external evaluation derived predictions (regenerate via eval_external.py)
+dataset/external_eval_results/
+
+# SUID aug data (regenerate via data_pipeline/generate_suid_variants.py + label_suid.py + merge_suid.py)
+dataset/gliclass_v2_suid/
+dataset/suid_variants.jsonl
+dataset/suid_aug_labeled.jsonl
+dataset/suid_synth.jsonl
+dataset/suid_synth_labeled.jsonl
+
+# C single-binary release build artifacts (regenerate via release/Makefile)
+release/build/
+release/ci_assets/
