@@ -30,3 +30,11 @@
 - `corpus/raw/synthetic/diverse.jsonl`  (0.82MB, 6087 条)
 - `corpus/raw/synthetic/suid_variants.jsonl`  (0.05MB, 345 条)
 - `corpus/raw/synthetic/synthetic.jsonl`  (0.87MB, 1806 条)
+
+## 历史 parquet（早期 seed + 早期标签，已被 corpus 覆盖但保留溯源）
+
+- `corpus/legacy/seed_labeled.parquet`（40 条 seed 原始）
+- `corpus/legacy/seed_soft_jev.parquet`（40 条 seed Jev 软标签）
+- `corpus/legacy/seed_hard_jev.parquet`（40 条 seed Jev 硬标签）
+- `corpus/legacy/soft_labels.parquet`（226 条早期软标签）
+- `corpus/legacy/synthetic.parquet`（18 条早期合成）
