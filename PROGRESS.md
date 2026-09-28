@@ -407,3 +407,24 @@ test verdict_acc 0.917 / action micro-F1 0.909，MITRE 由规则表确定性推�
 
 **保持 baseline 为最终交付**：`model/checkpoints_gpu/final_model_v2/`（INT8 ONNX 30.2MB，RSS 96MB，verdict_acc 0.917 / action F1 0.909）。
 SUID 增强版 `final_model_v2_suid/` 保留为**漏报敏感场景的备选**（非良性召回 +40.5pp，但内测 −1.6/−2.6pp），不替换 baseline。
+
+## C 单二进制静态编译 + 发布（GitHub Release）
+
+纯 C 推理引擎（无 ONNX Runtime），模型权重/vocab/标签/MITRE 规则全部通过 `ld -r -b binary` 嵌入，`-static` 编译成单二进制。
+
+**实现**：`release/hyperids.c`（WordPiece tokenizer + BERT 4层/512/8头 + GLiClass projector + 点积 scorer）、`export_c_weights.py`（权重导出 + per-channel int8）、`export_c_labels.py`（标签前缀/class位置/MITRE 位图 → `hyperids_labels.h`）、`Makefile`。
+
+**优化历程**：
+| 版本 | 二进制 | 速度 | RSS | 说明 |
+|---|---|---|---|---|
+| v1.0.0 | 119MB | 1127 ms/条 | 89 MiB | fp32，纯 C |
+| + AVX2/FMA | 119MB | 231 ms/条 | 89 MiB | 4.9x 提速 |
+| **v1.1.0** | **31MB** | **266 ms/条** | **38 MiB** | per-channel int8 + AVX2 |
+
+**对齐**：与 PyTorch fp32 `model/predict.py` 在 test 抽样 100 条上 verdict + actions **100/100 一致**（int8 量化 verdict 100% 正确，action 仅阈值边界抖动）。
+
+**发布**：
+- v1.0.0（fp32）：https://github.com/ohmydevelop/hyperids/releases/tag/v1.0.0
+- v1.1.0（int8+AVX2，最终）：https://github.com/ohmydevelop/hyperids/releases/tag/v1.1.0
+
+用法：`./hyperids-linux-x86_64 '<command>'`（或 `-` stdin / `--json`）。
