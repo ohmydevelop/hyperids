@@ -72,15 +72,24 @@ if [ -f "$LOCAL" ]; then
   install -m 0755 "$LOCAL" "$TARGET"
 else
   URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
-  echo "downloading $URL"
   tmp="$(mktemp -d)"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fL --retry 3 -o "$tmp/$BIN_NAME" "$URL"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$tmp/$BIN_NAME" "$URL"
+  downloaded=0
+  # private repo: prefer gh CLI (already authenticated), else GITHUB_TOKEN
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    echo "downloading via gh ($VERSION/$ASSET)"
+    gh release download "$VERSION" -R "$REPO" -p "$ASSET" -O "$tmp/$BIN_NAME" --clobber && downloaded=1
+  elif [ -n "${GITHUB_TOKEN:-}" ]; then
+    echo "downloading via GITHUB_TOKEN ($URL)"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fL --retry 3 -H "Authorization: token $GITHUB_TOKEN" -o "$tmp/$BIN_NAME" "$URL" && downloaded=1
+    fi
   else
-    echo "need curl or wget" >&2; exit 1
+    echo "repo is private; authenticate one of:" >&2
+    echo "  gh auth login           # then re-run" >&2
+    echo "  GITHUB_TOKEN=... ./install.sh" >&2
+    exit 1
   fi
+  [ "$downloaded" = 1 ] || { echo "download failed" >&2; exit 1; }
   chmod 0755 "$tmp/$BIN_NAME"
   echo "installing -> $TARGET"
   mv "$tmp/$BIN_NAME" "$TARGET"
