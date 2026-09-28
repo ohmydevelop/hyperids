@@ -9,8 +9,8 @@ cx.key
 # === large generated artifacts / data / models ===
 model/checkpoints/
 model/checkpoints_gpu/
-student/checkpoints/
-student/tokenizer/
+versions/experiments/kd_distill/checkpoints/
+versions/experiments/kd_distill/tokenizer/
 dataset/*.jsonl
 dataset/*.parquet
 dataset/gliclass/
@@ -30,16 +30,8 @@ __pycache__/
 .DS_Store
 
 # === deployment artifacts ===
-export/c_infer_example
-export/*.bin
-export/ort_headers/
-
-# compiled edge inference binary
-export/c_infer_example_edge
 dataset/gliclass_collapsed/
-export/c_infer_example_bert
 dataset/gliclass_v2/
-export/c_infer_example_v2
 dataset/gliclass_v2_kd/
 dataset/public_raw/
 dataset/gliclass_v2_aug/
@@ -48,10 +40,10 @@ dataset/public_labeled.jsonl
 dataset/synth_longtail.jsonl
 dataset/synth_smoke.jsonl
 
-# external evaluation derived predictions (regenerate via eval_external.py)
+# external evaluation derived predictions (regenerate via tools/eval_external.py)
 dataset/external_eval_results/
 
-# SUID aug data (regenerate via data_pipeline/generate_suid_variants.py + label_suid.py + merge_suid.py)
+# SUID aug data (regenerate via hyperids.data.generate_suid_variants + label_suid + merge_suid)
 dataset/gliclass_v2_suid/
 dataset/suid_variants.jsonl
 dataset/suid_aug_labeled.jsonl
@@ -59,5 +51,5 @@ dataset/suid_synth.jsonl
 dataset/suid_synth_labeled.jsonl
 
 # C single-binary release build artifacts (regenerate via release/Makefile)
-release/build/
-release/ci_assets/
+deploy/c_runtime/build/
+deploy/c_runtime/ci_assets/

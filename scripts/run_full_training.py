@@ -24,19 +24,19 @@ def main():
     print(f"studio {s.name}: {s.status} on {s.machine}", flush=True)
 
     print("[1] uploading final data + code ...", flush=True)
-    s.run(f"rm -rf ~/{REMOTE_DIR}/dataset/gliclass && mkdir -p ~/{REMOTE_DIR}/dataset/gliclass")
-    s.upload_folder("dataset/gliclass", f"{REMOTE_DIR}/dataset/gliclass")
-    s.upload_file("model/finetune.py", f"{REMOTE_DIR}/model/finetune.py")
-    s.upload_file("model/infer.py", f"{REMOTE_DIR}/model/infer.py")
-    s.upload_file("schema.py", f"{REMOTE_DIR}/schema.py")
-    s.upload_file("label_schema.yaml", f"{REMOTE_DIR}/label_schema.yaml")
+    s.run(f"rm -rf ~/{REMOTE_DIR}/hyperids ~/{REMOTE_DIR}/dataset/gliclass_v2 && mkdir -p ~/{REMOTE_DIR}/dataset/gliclass_v2")
+    s.upload_folder("dataset/gliclass_v2", f"{REMOTE_DIR}/dataset/gliclass_v2")
+    s.upload_folder("hyperids", f"{REMOTE_DIR}/hyperids")
+    
+    
+    
     time.sleep(30)  # let fuse sync
     print("[2] verifying files ...", flush=True)
-    print(s.run(f"ls -la ~/{REMOTE_DIR}/dataset/gliclass/"), flush=True)
+    print(s.run(f"ls -la ~/{REMOTE_DIR}/dataset/gliclass_v2/"), flush=True)
 
     print(f"[3] training (epochs={args.epochs} batch={args.batch_size} lr={args.lr}) ...", flush=True)
     out = s.run(
-        f"cd ~/{REMOTE_DIR} && python -u -m model.finetune "
+        f"cd ~/{REMOTE_DIR} && python -u -m hyperids.train --data_dir dataset/gliclass_v2 "
         f"--epochs {args.epochs} --batch_size {args.batch_size} --lr {args.lr} --device cuda"
     )
     print(out[-5000:], flush=True)

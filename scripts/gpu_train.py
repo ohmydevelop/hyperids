@@ -36,11 +36,11 @@ def main():
         print(out[-1500:], flush=True)
 
         print("[2/3] uploading code + data ...", flush=True)
-        s.run(f"rm -rf ~/{REMOTE_DIR} && mkdir -p ~/{REMOTE_DIR}/model ~/{REMOTE_DIR}/dataset")
-        s.upload_folder("model", f"{REMOTE_DIR}/model")
-        s.upload_folder("dataset/gliclass", f"{REMOTE_DIR}/dataset/gliclass")
-        s.upload_file("schema.py", f"{REMOTE_DIR}/schema.py")
-        s.upload_file("label_schema.yaml", f"{REMOTE_DIR}/label_schema.yaml")
+        s.run(f"rm -rf ~/{REMOTE_DIR} && mkdir -p ~/{REMOTE_DIR}/hyperids ~/{REMOTE_DIR}/dataset")
+        s.upload_folder("hyperids", f"{REMOTE_DIR}/hyperids")
+        s.upload_folder("dataset/gliclass_v2", f"{REMOTE_DIR}/dataset/gliclass_v2")
+        
+        
         print("upload done", flush=True)
 
     if args.setup_only:
@@ -48,7 +48,7 @@ def main():
 
     print(f"[3/3] training (epochs={args.epochs}, batch={args.batch_size}) ...", flush=True)
     cmd = (
-        f"cd ~/{REMOTE_DIR} && python -u -m model.finetune "
+        f"cd ~/{REMOTE_DIR} && python -u -m hyperids.train "
         f"--epochs {args.epochs} --batch_size {args.batch_size} --lr {args.lr} --device cuda"
     )
     out = s.run(cmd)

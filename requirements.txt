@@ -1,9 +1,15 @@
+# 核心（推理/评估/数据构建）
 pyyaml>=6.0
 pandas>=2.0
 pyarrow>=14.0
-# Phase 2+
-# torch
-# transformers
-# datasets
-# peft
-# onnxruntime   # INT8 export
+torch>=2.0
+transformers>=4.57
+gliclass>=0.1.20
+safetensors>=0.4
+numpy>=1.24
+
+# 导出/部署
+onnxruntime>=1.16
+
+# 训练编排（可选）
+lightning-sdk
