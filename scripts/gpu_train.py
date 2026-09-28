@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
 
 from lightning_sdk import Studio
 
-STUDIO_NAME = "<YOUR_STUDIO>"
-TEAMSPACE = "<YOUR_LIGHTNING_ACCOUNT>/<YOUR_TEAMSPACE>"
+STUDIO_NAME = os.environ.get("LIGHTNING_STUDIO_NAME", "")
+TEAMSPACE = os.environ.get("LIGHTNING_TEAMSPACE", "")
 REMOTE_DIR = "hyperids"
 
 SETUP_CMD = (
@@ -27,6 +28,8 @@ def main():
     ap.add_argument("--resume", action="store_true", help="skip upload/setup, just train")
     args = ap.parse_args()
 
+    if not STUDIO_NAME or not TEAMSPACE:
+        raise SystemExit("缺少 Lightning 配置：请设置 LIGHTNING_STUDIO_NAME / LIGHTNING_TEAMSPACE（见 .env.example）")
     s = Studio(name=STUDIO_NAME, teamspace=TEAMSPACE, create_ok=False)
     print(f"studio: {s.name}  status={s.status}  machine={s.machine}", flush=True)
 
