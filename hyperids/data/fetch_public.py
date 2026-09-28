@@ -6,6 +6,7 @@ Sources:
   - static curated tool examples      -> long-tail actions (nmap/hydra/xmrig/logkeys/...)
 
 Output: dataset/public_candidates.jsonl  {text, source, hint}
+  source ∈ {gtfobins, payloads, curated}  (gtfobins=GTFOBins, payloads=InternalAllTheThings, curated=静态工具示例)
 Jev does the final 31-dim labeling; hint is only a weak prior for coverage.
 """
 from __future__ import annotations
@@ -180,23 +181,23 @@ def _fetch_iat() -> list[tuple[str, str]]:
 
 
 def main():
-    rows = []
+    rows = []  # (text, hint, source)
     for action, cmds in STATIC.items():
         for c in cmds:
-            rows.append((c, action))
-    rows += _fetch_gtfobins()
-    rows += _fetch_iat()
+            rows.append((c, action, "curated"))
+    rows += [(t, h, "gtfobins") for t, h in _fetch_gtfobins()]
+    rows += [(t, h, "payloads") for t, h in _fetch_iat()]
 
     seen = set()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     n = 0
     with open(OUT, "w") as f:
-        for text, hint in rows:
+        for text, hint, source in rows:
             text = text.strip()
             if not text or text in seen:
                 continue
             seen.add(text)
-            f.write(json.dumps({"text": text, "source": "public", "hint": hint}, ensure_ascii=False) + "\n")
+            f.write(json.dumps({"text": text, "source": source, "hint": hint}, ensure_ascii=False) + "\n")
             n += 1
     print(f"wrote {n} public candidates -> {OUT}")
 

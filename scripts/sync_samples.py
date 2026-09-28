@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DS = ROOT / "dataset"
 CORPUS = DS / "corpus"
 
-PUBLIC_SRC = {"quasarnix", "nl2bash", "benign", "suspicious"}
+PUBLIC_SRC = {"quasarnix", "nl2bash", "benign", "suspicious", "gtfobins", "payloads", "curated"}
 SYNTH_SRC = {"synthetic", "diverse"}
 
 
@@ -58,17 +58,15 @@ def split_by_source(src: Path, dst: Path):
 def main():
     # ---- raw (unlabeled) ----
     split_by_source(DS / "candidates_50k.jsonl", CORPUS / "raw")
-    # public tool candidates (GTFOBins / PayloadsAllTheThings)
-    write_jsonl(CORPUS / "raw" / "public" / "gtfobins_payloads.jsonl",
-                read_jsonl(DS / "public_candidates.jsonl"))
+    # public tool candidates (GTFOBins / PayloadsAllTheThings / curated static)
+    split_by_source(DS / "public_candidates.jsonl", CORPUS / "raw")
     # SUID variants (rule-generated)
     write_jsonl(CORPUS / "raw" / "synthetic" / "suid_variants.jsonl",
                 read_jsonl(DS / "suid_variants.jsonl"))
 
     # ---- labeled (Jev) ----
     split_by_source(DS / "soft_labels_50k.jsonl", CORPUS / "labeled")
-    write_jsonl(CORPUS / "labeled" / "public" / "gtfobins_payloads.jsonl",
-                read_jsonl(DS / "public_labeled.jsonl"))
+    split_by_source(DS / "public_labeled.jsonl", CORPUS / "labeled")
     # longtail synth (merge the three synth_longtail files)
     longtail = []
     for name in ["synth_longtail", "synth_longtail_bulk", "synth_longtail_quality"]:
@@ -86,7 +84,7 @@ def main():
              "> 命名按数据源（quasarnix / nl2bash / synthetic / ...），不再是实现细节名。",
              "> `corpus/` 为 git 同步的正式语料；`dataset/` 根目录为工作副本（gitignored）。",
              "", "## 标注", "- **raw**：原始样本，未打标签。", "- **labeled**：Jev 打过标签（软/硬标签）。",
-             "", "## 来源", "- **public**：`quasarnix` / `nl2bash` / `benign` / `suspicious` / `gtfobins_payloads`。",
+             "", "## 来源", "- **public**：`quasarnix` / `nl2bash` / `benign` / `suspicious` / `gtfobins` / `payloads` / `curated`。",
              "- **synthetic**：`synthetic` / `diverse` / `suid_variants` / `longtail`。",
              "", "## 文件清单"]
     for p in sorted(CORPUS.rglob("*.jsonl")):

