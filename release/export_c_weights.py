@@ -1,11 +1,12 @@
-"""Export HyperIDs (GLiClass uni-encoder, bert-small) weights to flat C-layout binary.
+"""Export HyperIDs (GLiClass uni-encoder, bert-small) weights to flat C-layout binaries.
 
-Layout (little-endian float32, C row-major, in this exact order):
-  emb_words [30525,512], emb_pos [512,512], emb_ttype [2,512], emb_ln_w/b [512]
-  4 x encoder layer: q,k,v,attn_o (w,b), attn_ln(w,b), ffn1(w,b), ffn2(w,b), ffn_ln(w,b)
-  text_projector: linear_1(w,b), linear_2(w,b)
-  classes_projector: linear_1(w,b), linear_2(w,b)
-(bert pooler.dense and logit_scale are NOT used in inference.)
+Two outputs:
+  model_f32.bin — fp32 (reference)
+  model_int8.bin — per-channel int8 for 2D weights + fp32 for 1D (bias/LayerNorm)
+
+int8 layout per 2D matrix [N,K]: scale[N] (fp32) then W_int8[N*K] (int8).
+1D arrays stay fp32. Matrices are emitted in the exact order `load_model_mem`
+in hyperids.c reads them.
 """
 from __future__ import annotations
 import json
@@ -23,53 +24,70 @@ H = 512
 L = 4
 VOCAB = 30525
 
+# 2D matrices are int8-quantized per-channel (per output row); 1D stays fp32.
+INT8_2D = True
+
+
+def q(arr):
+    """per-channel int8 quantize -> (W_int8 [N,K], scale [N])."""
+    wf = arr.astype(np.float32)
+    maxa = np.abs(wf).max(axis=1, keepdims=True)
+    scale = np.maximum(maxa / 127.0, 1e-12).astype(np.float32).reshape(-1)
+    wq = np.clip(np.round(wf / scale[:, None]), -127, 127).astype(np.int8)
+    return wq, scale
+
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     with safe_open(str(SAFE), framework="pt") as f:
         t = {k: f.get_tensor(k) for k in f.keys()}
 
-    def put(name):
-        arr = np.ascontiguousarray(t[name], dtype=np.float32)
-        return arr.tobytes()
+    def arr(name):
+        return np.ascontiguousarray(t[name].float())
 
-    blobs = []
-    blobs.append(put("model.encoder_model.embeddings.word_embeddings.weight"))
-    blobs.append(put("model.encoder_model.embeddings.position_embeddings.weight"))
-    blobs.append(put("model.encoder_model.embeddings.token_type_embeddings.weight"))
-    blobs.append(put("model.encoder_model.embeddings.LayerNorm.weight"))
-    blobs.append(put("model.encoder_model.embeddings.LayerNorm.bias"))
+    # ordered list of matrix names with (dim) -> 2D or 1D
+    order = [
+        ("model.encoder_model.embeddings.word_embeddings.weight", 2),
+        ("model.encoder_model.embeddings.position_embeddings.weight", 2),
+        ("model.encoder_model.embeddings.token_type_embeddings.weight", 2),
+        ("model.encoder_model.embeddings.LayerNorm.weight", 1),
+        ("model.encoder_model.embeddings.LayerNorm.bias", 1),
+    ]
     for l in range(L):
         b = f"model.encoder_model.encoder.layer.{l}"
-        blobs.append(put(f"{b}.attention.self.query.weight"))
-        blobs.append(put(f"{b}.attention.self.query.bias"))
-        blobs.append(put(f"{b}.attention.self.key.weight"))
-        blobs.append(put(f"{b}.attention.self.key.bias"))
-        blobs.append(put(f"{b}.attention.self.value.weight"))
-        blobs.append(put(f"{b}.attention.self.value.bias"))
-        blobs.append(put(f"{b}.attention.output.dense.weight"))
-        blobs.append(put(f"{b}.attention.output.dense.bias"))
-        blobs.append(put(f"{b}.attention.output.LayerNorm.weight"))
-        blobs.append(put(f"{b}.attention.output.LayerNorm.bias"))
-        blobs.append(put(f"{b}.intermediate.dense.weight"))
-        blobs.append(put(f"{b}.intermediate.dense.bias"))
-        blobs.append(put(f"{b}.output.dense.weight"))
-        blobs.append(put(f"{b}.output.dense.bias"))
-        blobs.append(put(f"{b}.output.LayerNorm.weight"))
-        blobs.append(put(f"{b}.output.LayerNorm.bias"))
-    # text_projector
-    blobs.append(put("model.text_projector.linear_1.weight"))
-    blobs.append(put("model.text_projector.linear_1.bias"))
-    blobs.append(put("model.text_projector.linear_2.weight"))
-    blobs.append(put("model.text_projector.linear_2.bias"))
-    # classes_projector
-    blobs.append(put("model.classes_projector.linear_1.weight"))
-    blobs.append(put("model.classes_projector.linear_1.bias"))
-    blobs.append(put("model.classes_projector.linear_2.weight"))
-    blobs.append(put("model.classes_projector.linear_2.bias"))
+        order += [
+            (f"{b}.attention.self.query.weight", 2), (f"{b}.attention.self.query.bias", 1),
+            (f"{b}.attention.self.key.weight", 2), (f"{b}.attention.self.key.bias", 1),
+            (f"{b}.attention.self.value.weight", 2), (f"{b}.attention.self.value.bias", 1),
+            (f"{b}.attention.output.dense.weight", 2), (f"{b}.attention.output.dense.bias", 1),
+            (f"{b}.attention.output.LayerNorm.weight", 1), (f"{b}.attention.output.LayerNorm.bias", 1),
+            (f"{b}.intermediate.dense.weight", 2), (f"{b}.intermediate.dense.bias", 1),
+            (f"{b}.output.dense.weight", 2), (f"{b}.output.dense.bias", 1),
+            (f"{b}.output.LayerNorm.weight", 1), (f"{b}.output.LayerNorm.bias", 1),
+        ]
+    order += [
+        ("model.text_projector.linear_1.weight", 2), ("model.text_projector.linear_1.bias", 1),
+        ("model.text_projector.linear_2.weight", 2), ("model.text_projector.linear_2.bias", 1),
+        ("model.classes_projector.linear_1.weight", 2), ("model.classes_projector.linear_1.bias", 1),
+        ("model.classes_projector.linear_2.weight", 2), ("model.classes_projector.linear_2.bias", 1),
+    ]
 
-    blob = b"".join(blobs)
-    (OUT / "model_f32.bin").write_bytes(blob)
+    f32_blobs = []
+    i8_blobs = []
+    for name, ndim in order:
+        a = arr(name)
+        f32_blobs.append(a.astype(np.float32).tobytes())
+        if ndim == 2:
+            wq, scale = q(a)
+            i8_blobs.append(scale.tobytes())
+            i8_blobs.append(wq.tobytes())
+        else:
+            i8_blobs.append(a.astype(np.float32).tobytes())
+
+    f32_blob = b"".join(f32_blobs)
+    i8_blob = b"".join(i8_blobs)
+    (OUT / "model_f32.bin").write_bytes(f32_blob)
+    (OUT / "model_int8.bin").write_bytes(i8_blob)
 
     cfg = {
         "vocab_size": VOCAB, "hidden_size": H, "num_layers": L, "num_heads": 8,
@@ -78,17 +96,16 @@ def main():
         "pad_token_id": 0, "hidden_act": "gelu",
     }
     (OUT / "model_config.json").write_text(json.dumps(cfg, indent=2) + "\n")
-
-    # copy vocab
     (OUT / "vocab.txt").write_text(VOCAB_SRC.read_text(encoding="utf-8"))
 
     meta = {
-        "binary_bytes": len(blob),
-        "binary_sha256": hashlib.sha256(blob).hexdigest(),
+        "f32_bytes": len(f32_blob),
+        "int8_bytes": len(i8_blob),
+        "int8_sha256": hashlib.sha256(i8_blob).hexdigest(),
         "config": cfg,
     }
     (OUT / "export_meta.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"wrote model_f32.bin ({len(blob)/1e6:.1f}MB) + config + vocab -> {OUT}")
+    print(f"wrote model_f32.bin ({len(f32_blob)/1e6:.1f}MB) + model_int8.bin ({len(i8_blob)/1e6:.1f}MB)")
     print(json.dumps(meta, indent=2))
 
 
