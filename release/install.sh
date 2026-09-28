@@ -1,7 +1,7 @@
 #!/bin/sh
 # HyperIDs — one-shot installer
 #
-# Usage:
+# Usage (public repo, one-liner):
 #   curl -fsSL https://github.com/ohmydevelop/hyperids/releases/latest/download/install.sh | sh
 #   ./install.sh                      # install a binary next to me to ~/.local/bin
 #   ./install.sh --prefix /usr/local  # system-wide (needs write permission)
@@ -74,20 +74,18 @@ else
   URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
   tmp="$(mktemp -d)"
   downloaded=0
-  # private repo: prefer gh CLI (already authenticated), else GITHUB_TOKEN
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    echo "downloading via gh ($VERSION/$ASSET)"
+  # public repo: plain curl first (no auth); fall back to gh / GITHUB_TOKEN
+  if command -v curl >/dev/null 2>&1; then
+    echo "downloading $URL"
+    curl -fL --retry 3 -o "$tmp/$BIN_NAME" "$URL" && downloaded=1
+  fi
+  if [ "$downloaded" != 1 ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    echo "plain download failed; trying gh ($VERSION/$ASSET)"
     gh release download "$VERSION" -R "$REPO" -p "$ASSET" -O "$tmp/$BIN_NAME" --clobber && downloaded=1
-  elif [ -n "${GITHUB_TOKEN:-}" ]; then
-    echo "downloading via GITHUB_TOKEN ($URL)"
-    if command -v curl >/dev/null 2>&1; then
-      curl -fL --retry 3 -H "Authorization: token $GITHUB_TOKEN" -o "$tmp/$BIN_NAME" "$URL" && downloaded=1
-    fi
-  else
-    echo "repo is private; authenticate one of:" >&2
-    echo "  gh auth login           # then re-run" >&2
-    echo "  GITHUB_TOKEN=... ./install.sh" >&2
-    exit 1
+  fi
+  if [ "$downloaded" != 1 ] && [ -n "${GITHUB_TOKEN:-}" ] && command -v curl >/dev/null 2>&1; then
+    echo "trying GITHUB_TOKEN"
+    curl -fL --retry 3 -H "Authorization: token $GITHUB_TOKEN" -o "$tmp/$BIN_NAME" "$URL" && downloaded=1
   fi
   [ "$downloaded" = 1 ] || { echo "download failed" >&2; exit 1; }
   chmod 0755 "$tmp/$BIN_NAME"
