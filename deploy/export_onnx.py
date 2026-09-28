@@ -34,7 +34,6 @@ def main():
     ap.add_argument("--out", type=str, default=str(OUT_ONNX))
     ap.add_argument("--chunk", type=int, default=CHUNK)
     ap.add_argument("--seq_len", type=int, default=SEQ_LEN)
-    ap.add_argument("--collapsed", action="store_true")
     args = ap.parse_args()
 
     from gliclass import GLiClassModel

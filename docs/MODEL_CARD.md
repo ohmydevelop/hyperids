@@ -30,8 +30,7 @@
 | test | 5,978 |
 
 - 来源：QuasarNix（恶意）+ NL2Bash（良性）+ LLM 合成 + 红队变体。
-- 教师：Jev（`jev-1.13.0`）——唯一软标签来源，199 维软标签 74,743 条。
-- 标签映射：`199 → 31` 确定性映射（verdict 1:1，action 多对一求和）。
+- 教师：Jev（`jev-1.13.0`）——唯一标签来源，31 维软标签（verdict 3 + action 28）。
 - verdict 分布（全量）：benign 28,688 / malicious 27,818 / suspicious 20,930。
 - action 覆盖：28/28 全部有正样本；support 范围 28（最小）~ 35,539（最大，command_and_control）。
 
@@ -78,7 +77,7 @@
   - `model_int8.onnx`（30.2MB）
 - schema：`label_schema.yaml` + `schema.py`（当前 31 标签）
 - 训练/评估/推理：`model/train.py` / `model/eval.py` / `model/predict.py`
-- 历史实验：`model/experiments/`（v1 electra / v2 gliclass-edge / v3 bert-132）
+
 
 ## 推理示例
 

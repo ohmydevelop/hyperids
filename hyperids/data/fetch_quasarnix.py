@@ -3,7 +3,7 @@
 TODO(data-source): 当前未提供 QuasarNix 的 HF/GitHub 地址。
   补全后实现 `_fetch()`，输出与 dataset/corpus/raw/public/quasarnix.jsonl 对齐：
      每行 {"text": <command>, "source": "quasarnix"}
-  之后由 `hyperids.data.bulk_50k` / `hyperids.jev_labels_legacy` 打 199 维 Jev 标签。
+  之后由 `hyperids.jev_labels` 打 31 维 Jev 标签。
 """
 from __future__ import annotations
 

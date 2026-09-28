@@ -9,11 +9,8 @@ cx.key
 # === large generated artifacts / data / models ===
 model/checkpoints/
 model/checkpoints_gpu/
-versions/experiments/kd_distill/checkpoints/
-versions/experiments/kd_distill/tokenizer/
 dataset/*.jsonl
 dataset/*.parquet
-dataset/gliclass/
 *.onnx
 *.safetensors
 *.pt
@@ -29,27 +26,15 @@ __pycache__/
 *.log
 .DS_Store
 
-# === deployment artifacts ===
-dataset/gliclass_collapsed/
+# === data（gitignored，可从 corpus 重建）===
 dataset/gliclass_v2/
-dataset/gliclass_v2_kd/
 dataset/public_raw/
-dataset/gliclass_v2_aug/
-dataset/public_candidates.jsonl
-dataset/public_labeled.jsonl
-dataset/synth_longtail.jsonl
-dataset/synth_smoke.jsonl
-
-# external evaluation derived predictions (regenerate via tools/eval_external.py)
-dataset/external_eval_results/
-
-# SUID aug data (regenerate via hyperids.data.generate_suid_variants + label_suid + merge_suid)
-dataset/gliclass_v2_suid/
 dataset/suid_variants.jsonl
 dataset/suid_aug_labeled.jsonl
-dataset/suid_synth.jsonl
-dataset/suid_synth_labeled.jsonl
 
-# C single-binary release build artifacts (regenerate via release/Makefile)
+# === 外部评测衍生结果（regenerate via tools/eval_external.py）===
+dataset/external_eval_results/
+
+# === C 单二进制构建产物（regenerate via deploy/c_runtime/Makefile）===
 deploy/c_runtime/build/
 deploy/c_runtime/ci_assets/

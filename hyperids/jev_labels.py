@@ -1,8 +1,7 @@
-"""Jev labeling under the v2 schema (31 labels: verdict 3 + action 28).
+"""Jev 打标（31 标签：verdict 3 + action 28）。
 
-Reduced from the old 199-dim prompt to 29 questions:
-    1 Choice (verdict, 3 options) + 28 Noul (action)
--> one 31-dim soft vector aligned to schema.all_label_ids() order.
+29 题：1 Choice（verdict）+ 28 Noul（action）
+-> 一个 31 维软向量，对齐 schema.all_label_ids() 顺序。
 """
 from __future__ import annotations
 

@@ -1,108 +1,108 @@
-"""Build the v2 (verdict 3 + action 28 = 31 labels) GLiClass dataset.
+"""从 corpus/labeled（31 维 Jev 软标签）构建 gliclass_v2 训练集。
 
-Derives v2 labels deterministically from the existing Jev 199-dim soft labels
-(soft_labels_50k.jsonl) plus the same train/val/test text split as
-dataset/gliclass_collapsed. MITRE tactic/technique are NOT labels; they are
-derived from actions via schema.action_attck() at inference.
+corpus 每行：{text, source, verdict, actions, soft(31维), model}
+输出 dataset/gliclass_v2/{train,val,test}.json + labels_desc.json，GLiClass 格式：
+  {"text":..., "true_labels":[verdict]+actions, "all_labels":31, "soft_v2":31维}
 """
 from __future__ import annotations
 
 import json
+import random
+from collections import defaultdict
 from pathlib import Path
 
-from hyperids.schema_legacy import all_label_ids as OLD_IDS
 from hyperids import schema
 
 ROOT = Path(__file__).resolve().parents[1]
-SOFT_JSONL = ROOT / "dataset" / "soft_labels_50k.jsonl"
-SPLIT_SRC = ROOT / "dataset" / "gliclass_collapsed"
+CORPUS_LABELED = ROOT / "dataset" / "corpus" / "labeled"
 DST = ROOT / "dataset" / "gliclass_v2"
 
-OLD = OLD_IDS()
-OLD_IDX = {oid: i for i, oid in enumerate(OLD)}
+ALL_LABELS = list(schema.all_label_ids())
+VERDICT = list(schema.verdict_ids())
+ACTIONS = list(schema.action_ids())
 
 
-def _source_indices(oid: str):
-    """indices of old soft vector for a source id (incl. technique sub-techniques)."""
-    return [i for i, x in enumerate(OLD) if x == oid or x.startswith(oid + ".")]
+def load_corpus(corpus_dir: Path = CORPUS_LABELED) -> list[dict]:
+    rows = []
+    seen = set()
+    for p in sorted(corpus_dir.rglob("*.jsonl")):
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            text = d.get("text")
+            verdict = d.get("verdict")
+            if not text or verdict not in VERDICT or text in seen:
+                continue
+            seen.add(text)
+            rows.append({
+                "text": text,
+                "verdict": verdict,
+                "actions": [a for a in d.get("actions", []) if a in ACTIONS],
+                "soft": d.get("soft"),
+            })
+    return rows
 
 
-# precompute source index sets
-VERDICT_SRC = {vid: _source_indices(oid) for vid, oid in schema.verdict_from_old().items()}
-ACTION_SRC = {aid: [j for oid in sources for j in _source_indices(oid)]
-              for aid, sources in schema.action_from_old().items()}
+def stratified_split(rows: list[dict], val_ratio: float = 0.08, test_ratio: float = 0.08, seed: int = 42):
+    buckets = defaultdict(list)
+    for r in rows:
+        buckets[r["verdict"]].append(r)
+    train, val, test = [], [], []
+    rng = random.Random(seed)
+    for v, items in buckets.items():
+        rng.shuffle(items)
+        n = len(items)
+        n_test = max(1, int(n * test_ratio))
+        n_val = max(1, int(n * val_ratio))
+        test += items[:n_test]
+        val += items[n_test:n_test + n_val]
+        train += items[n_test + n_val:]
+    rng.shuffle(train)
+    rng.shuffle(val)
+    rng.shuffle(test)
+    return train, val, test
 
 
-def soft_to_v2(old_soft) -> list[float]:
-    v = [sum(old_soft[j] for j in VERDICT_SRC[vid]) for vid in schema.verdict_ids()]
-    a = [min(1.0, sum(old_soft[j] for j in ACTION_SRC[aid])) for aid in schema.action_ids()]
-    return v + a
+def build(corpus_dir: Path = CORPUS_LABELED, out_dir: Path = DST):
+    rows = load_corpus(corpus_dir)
+    print(f"valid corpus rows: {len(rows)}")
+    train, val, test = stratified_split(rows)
 
+    out_dir.mkdir(parents=True, exist_ok=True)
+    desc = schema.descriptions()
+    (out_dir / "labels_desc.json").write_text(
+        json.dumps([{"label": l, "description": desc[l]} for l in ALL_LABELS],
+                   ensure_ascii=False, indent=2))
 
-def hard_from_v2(v2soft) -> list[str]:
-    v = v2soft[:3]
-    verdict = [schema.verdict_ids()[max(range(3), key=lambda i: v[i])]]
-    actions = [aid for i, aid in enumerate(schema.action_ids()) if v2soft[3 + i] >= 0.5]
-    return verdict + actions
+    for name, split in (("train", train), ("val", val), ("test", test)):
+        data = []
+        for r in split:
+            item = {
+                "text": r["text"],
+                "true_labels": [r["verdict"]] + r["actions"],
+                "all_labels": ALL_LABELS,
+            }
+            if r["soft"] is not None and len(r["soft"]) == len(ALL_LABELS):
+                item["soft_v2"] = r["soft"]
+            data.append(item)
+        (out_dir / f"{name}.json").write_text(json.dumps(data, ensure_ascii=False))
+        print(f"  {name}: {len(data)}")
 
-
-def hard_map(old_hard_labels) -> list[str]:
-    """Fallback for the ~4% texts missing from the soft file."""
-    old_to_action = {oid: aid for aid, srcs in schema.action_from_old().items() for oid in srcs}
-    verdict = None
-    actions = set()
-    for l in old_hard_labels:
-        if l.startswith("risk."):
-            verdict = "verdict." + l.split(".", 1)[1]
-        elif l in old_to_action:
-            actions.add(old_to_action[l])
-    if verdict is None:
-        verdict = "verdict.suspicious"
-    return [verdict] + sorted(actions)
+    print(f"→ {out_dir}/ (train/val/test.json + labels_desc.json)")
 
 
 def main():
     import argparse
     ap = argparse.ArgumentParser()
+    ap.add_argument("--corpus_dir", type=str, default=str(CORPUS_LABELED))
     ap.add_argument("--out", type=str, default=str(DST))
     args = ap.parse_args()
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    soft_by_text = {}
-    with open(SOFT_JSONL) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            d = json.loads(line)
-            soft_by_text[d["text"]] = d["soft"]
-
-    all_labels = schema.all_label_ids()
-    desc = schema.descriptions()
-    (out_dir / "labels_desc.json").write_text(
-        json.dumps([{"label": l, "description": desc[l]} for l in all_labels], ensure_ascii=False, indent=2))
-
-    for split in ("train", "val", "test"):
-        src = json.loads((SPLIT_SRC / f"{split}.json").read_text())
-        out, with_soft, missing = [], 0, 0
-        for ex in src:
-            soft = soft_by_text.get(ex["text"])
-            if soft is not None:
-                v2 = soft_to_v2(soft)
-                true = hard_from_v2(v2)
-                with_soft += 1
-            else:
-                true = hard_map(ex["true_labels"])
-                v2 = None
-                missing += 1
-            item = {"text": ex["text"], "true_labels": true, "all_labels": list(all_labels)}
-            if v2 is not None:
-                item["soft_v2"] = v2
-            out.append(item)
-        (out_dir / f"{split}.json").write_text(json.dumps(out, ensure_ascii=False))
-        print(f"{split}: {len(out)} examples (soft {with_soft}, hard-fallback {missing})")
-
-    print(f"labels_desc: {len(all_labels)} labels -> {out_dir/'labels_desc.json'}")
+    build(Path(args.corpus_dir), Path(args.out))
 
 
 if __name__ == "__main__":

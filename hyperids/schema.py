@@ -1,9 +1,7 @@
-"""HyperIDs current label schema: verdict (3) + action (28) = 31 labels.
+"""HyperIDs 标签 schema：verdict（3）+ action（28）= 31 标签。
 
 Source of truth: label_schema.yaml
-Legacy 199-label schema -> current 31-label mapping lives in the `from_old` field.
-MITRE tactic/technique are NOT predicted; they are derived from actions via
-`action_attck()` (a deterministic rule table).
+MITRE tactic/technique 不预测，由 actions 经 `action_attck()` 规则表确定性推导。
 """
 from __future__ import annotations
 
@@ -49,22 +47,6 @@ def descriptions() -> dict[str, str]:
     out = {x["id"]: x["description"] for x in d["verdict"]}
     out.update({x["id"]: x["description"] for x in d["action"]})
     return out
-
-
-@lru_cache(maxsize=1)
-def action_from_old() -> dict[str, tuple[str, ...]]:
-    """action id -> old-schema source label ids (sum their soft probs)."""
-    return {x["id"]: tuple(x["from_old"]) for x in load()["action"]}
-
-
-@lru_cache(maxsize=1)
-def verdict_from_old() -> dict[str, str]:
-    """verdict id -> old risk id (1:1)."""
-    return {
-        "verdict.benign": "risk.benign",
-        "verdict.suspicious": "risk.suspicious",
-        "verdict.malicious": "risk.malicious",
-    }
 
 
 @lru_cache(maxsize=1)

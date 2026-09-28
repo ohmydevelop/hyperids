@@ -12,8 +12,6 @@ Linux shell 命令威胁分类器。给定一条 shell 命令，输出：
 ```
 hyperids/        核心包：schema / 训练 / 评估 / 推理 / 数据构建 / 公共客户端
   data/          上游数据准备（拉取 / 合成 / 打标，可选重跑）
-versions/        历史版本归档：v1_electra_199 / v2_gliclass_edge_199 / v3_bert_132
-                 + experiments/（被否决的 KD 蒸馏、红队）
 deploy/          部署：ONNX 导出 / INT8 量化 / C 单二进制（c_runtime/）
 tools/           工具：bench / 外部评测 / schema 校验
 docs/            文档：模型卡 / 训练链路 / 数据链路 / 进度 / 外部评测
