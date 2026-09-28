@@ -16,13 +16,13 @@ import numpy as np
 from safetensors import safe_open
 
 ROOT = Path(__file__).resolve().parents[2]
-SAFE = ROOT / "model" / "checkpoints_gpu" / "final_model_v2" / "model.safetensors"
+SAFE = ROOT / "model" / "checkpoints_gpu" / "final_model_v3" / "model.safetensors"
 OUT = ROOT / "deploy" / "c_runtime" / "ci_assets"
-VOCAB_SRC = ROOT / "model" / "checkpoints_gpu" / "final_model_v2" / "vocab.txt"
+VOCAB_SRC = ROOT / "model" / "checkpoints_gpu" / "final_model_v3" / "vocab.txt"
 
 H = 512
 L = 4
-VOCAB = 30525
+VOCAB = 6702
 
 # 2D matrices are int8-quantized per-channel (per output row); 1D stays fp32.
 INT8_2D = True

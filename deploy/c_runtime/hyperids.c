@@ -33,7 +33,7 @@ extern const unsigned char _binary_ci_assets_vocab_txt_end[];
 
 typedef float f32;
 
-#define CFG_VOCAB   30525
+#define CFG_VOCAB   6702
 #define CFG_HIDDEN  512
 #define CFG_LAYERS  4
 #define CFG_HEADS   8
@@ -42,9 +42,9 @@ typedef float f32;
 #define CFG_EPS     1e-12f
 #define ATT_SCALE   0.125f
 
-#define CLS_ID  101
-#define SEP_ID  102
-#define UNK_ID  100
+#define CLS_ID  2
+#define SEP_ID  3
+#define UNK_ID  1
 
 /* ---- vocab ---- */
 #define MAX_VOCAB 40000

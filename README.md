@@ -64,10 +64,10 @@ command_and_control、exfiltration、impact。
 
 | 指标 | fp32 | INT8（部署） |
 |---|---|---|
-| verdict_acc | 0.9167 | **0.9187** |
-| action micro-F1 | 0.9090 | **0.9099** |
-| action precision | 0.9351 | 0.9338 |
-| action recall | 0.8843 | 0.8871 |
+| verdict_acc | **0.9244** | — |
+| action micro-F1 | **0.9205** | — |
+| action precision | 0.9394 | — |
+| action recall | 0.9023 | — |
 
 > INT8 与 fp32 基本无损。
 
@@ -87,10 +87,10 @@ command_and_control、exfiltration、impact。
 
 | 项 | 值 |
 |---|---|
-| 参数量 | 29.8M（≤30M） |
+| 参数量 | **17.6M**（词表裁剪，≤30M） |
 | INT8 ONNX 体积 | 30.2MB |
-| C 单二进制（per-channel int8） | ~31MB |
-| C 运行时峰值 RSS | ~38 MiB（<100MB） |
-| 推理速度 | ~266 ms/条（AVX2+FMA，CPU） |
+| C 单二进制（per-channel int8） | **~18MB** |
+| C 运行时峰值 RSS | **~27 MiB**（<100MB） |
+| 推理速度 | ~280 ms/条（AVX2+FMA，CPU） |
 
 完整模型卡见 `docs/MODEL_CARD.md`。

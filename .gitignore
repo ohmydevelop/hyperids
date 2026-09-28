@@ -41,3 +41,7 @@ dataset/external_eval_results/
 # === C 单二进制构建产物（regenerate via deploy/c_runtime/Makefile）===
 deploy/c_runtime/build/
 deploy/c_runtime/ci_assets/
+
+# === 私有数据（NEVER commit，10.2.98.38 拉取）===
+dataset/private/
+private/

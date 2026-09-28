@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 from hyperids import schema
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v2"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v3"
 OUT = ROOT / "deploy" / "c_runtime" / "hyperids_labels.h"
 
 IDS = schema.all_label_ids()
@@ -20,9 +20,9 @@ def main():
     # (the trailing [SEP] is appended after the command at inference time)
     prefix_s = "".join(f"<<LABEL>>{l}" for l in IDS) + "<<SEP>>"
     ids = [tok.cls_token_id] + tok(prefix_s, add_special_tokens=False)["input_ids"]
-    cls_pos = [i for i, t in enumerate(ids) if t == 30522]
+    cls_pos = [i for i, t in enumerate(ids) if t == tok.convert_tokens_to_ids("<<LABEL>>")]
     assert len(cls_pos) == 31, f"expected 31 class tokens, got {len(cls_pos)}"
-    sep_pos = [i for i, t in enumerate(ids) if t == 30523]
+    sep_pos = [i for i, t in enumerate(ids) if t == tok.convert_tokens_to_ids("<<SEP>>")]
     assert len(sep_pos) == 1
 
     rules = schema.action_attck()
