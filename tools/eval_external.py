@@ -29,7 +29,7 @@ if str(ROOT) not in sys.path:
 
 from hyperids import schema  # noqa: E402
 
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v2"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v4"
 EVAL_DIR = ROOT / "dataset" / "external_eval"
 OUT_DIR = ROOT / "dataset" / "external_eval_results"
 

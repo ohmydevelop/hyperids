@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 from hyperids import schema
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v2"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v4"
 DATA_DIR = ROOT / "dataset" / "gliclass_v2"
 
 IDS = schema.all_label_ids()

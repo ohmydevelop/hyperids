@@ -97,4 +97,8 @@ command_and_control、exfiltration、impact。
 | C 运行时峰值 RSS | **~27 MiB**（<100MB） |
 | 推理速度 | ~280 ms/条（AVX2+FMA，CPU） |
 
+此外（v1.3.0 对抗修复）：
+- 严格 malicious Recall **95.86%**（≥95% 门槛）
+- 320→512 长度 + 滑动窗口分段：截断对抗宽松召回 **0% → 98%**
+
 完整模型卡见 `docs/MODEL_CARD.md`。
