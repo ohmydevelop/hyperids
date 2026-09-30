@@ -91,3 +91,34 @@ PYTHONPATH=. python /tmp/evaluate_benign_fpr.py
 # ground_truth 分析
 python adversarial/analyze_ground_truth.py
 ```
+
+## 8. Session 级建模评测（规则聚合，本轮）
+
+### 数据
+- 模板构造攻击链 session：`session_sequences.jsonl`（19 恶意 + 10 良性，4 类攻击链）
+- LLM 合成隐蔽链：`session_sequences_llm.jsonl`（12 恶意，qwen-flash 合成）
+
+### 评测结果（单命令基线 vs 规则聚合）
+
+| 集 | 口径 | 严格召回 | 宽松召回 | 良性误报 |
+|---|---|---|---|---|
+| 模板（29 session） | 单命令基线 | 53% | 100% | 60% |
+| 模板（29 session） | 规则聚合 | 53% | 100% | 60% |
+| LLM 隐蔽链（12 恶意） | 两者 | ~0% | 100% | — |
+
+### 关键结论（诚实）
+
+**session 级规则聚合在本项目价值有限，接近伪需求**：
+
+1. 攻击链的关键命令（下载/执行/反弹 shell/持久化/清日志）本身就被单命令模型判
+   suspicious/malicious，单命令基线宽松召回已 100%。
+2. 规则聚合命中攻击链后 verdict 仅「提级到 suspicious」，而这些命令本来就是 suspicious
+   —— 无额外收益，反而引入误报（如 `git clone`+`npm install` 被误判 download_execute 链）。
+3. **真正的瓶颈不是 session 序列语义，而是 verdict 的 suspicious→malicious 置信度**
+   （严格召回仅 53%，download_execute 链全 suspicious 无 malicious）。
+
+### 后续建议
+
+- 放弃「规则聚合」路线；真正该做的是**提升模型恶意置信度**：换更强骨干 / 补恶意样本 /
+  优化 verdict 损失，把 suspicious 正确升级为 malicious。
+- session 级序列建模若仍要做，需走「序列重训」而非规则聚合，且需先解决 verdict 置信度这一前置问题。
