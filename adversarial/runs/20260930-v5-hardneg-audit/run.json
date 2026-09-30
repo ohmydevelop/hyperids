@@ -1,0 +1,13 @@
+{
+  "run_id": "20260930-v5-hardneg-audit",
+  "created_at": "2026-09-30T21:30:00-04:00",
+  "purpose": "audit v5 verdict distribution on frozen red-team labeled set; select gt=malicious but model != malicious as hard-negative training candidates",
+  "target_model_dir": "model/checkpoints_gpu/final_model_v5",
+  "target_model_sha256": "516f0e3b16c34d4a06ccc9c6b68703db4129eab76dd48f59cb342945f6916733",
+  "schema_sha256": "8b5b1382f99c95948f70dc835b373972c8e5e8e8bdb1813bd1df4b213af64c8e",
+  "thresholds_sha256": "default-0.5-no-per-action-thresholds",
+  "eval_max_length": 512,
+  "generator_protocol": "none-audit-only",
+  "training_data_read": false,
+  "external_sources": ["adversarial/labeled.jsonl"]
+}

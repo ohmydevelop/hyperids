@@ -1,0 +1,31 @@
+{
+  "run_id": "20260930-v5-hardneg-audit",
+  "model_dir": "/home/ubuntu/Works/hyperids/model/checkpoints_gpu/final_model_v5",
+  "total": 3620,
+  "gt_distribution": {
+    "suspicious": 1056,
+    "malicious": 2385,
+    "benign": 179
+  },
+  "model_verdict_by_gt": {
+    "benign": {
+      "suspicious": 150,
+      "benign": 7,
+      "malicious": 22
+    },
+    "malicious": {
+      "suspicious": 1452,
+      "malicious": 915,
+      "benign": 18
+    },
+    "suspicious": {
+      "suspicious": 688,
+      "benign": 21,
+      "malicious": 347
+    }
+  },
+  "hard_neg_candidates": 1470,
+  "hard_neg_suspicious": 1452,
+  "hard_neg_benign": 18,
+  "note": "gt=malicious but v5 verdict != malicious are hard-negative training candidates; do NOT auto-merge without user authorization"
+}

@@ -60,20 +60,19 @@ command_and_control、exfiltration、impact。
 
 ## 模型指标
 
-### 内测（v1.4.0，action 平衡 test 6,287）
+### 内测（v1.5.0，action 平衡 test 6,287）
 
-| 指标 | v4 | v5 |
-|---|---:|---:|
-| verdict_acc | 92.89% | **93.10%** |
-| action micro-Precision | 80.21% | **90.92%** |
-| action micro-Recall | 93.62% | **91.40%** |
-| action micro-F1 | 86.40% | **91.16%** |
-| action macro-F1 | 67.04% | **80.52%** |
+| 指标 | v4 | v5 | v6 |
+|---|---:|---:|---:|
+| verdict_acc | 92.89% | 93.10% | 93.02% |
+| action micro-Precision | 80.21% | 90.92% | **91.05%** |
+| action micro-Recall | 93.62% | 91.40% | **92.06%** |
+| action micro-F1 | 86.40% | 91.16% | **91.55%** |
+| action macro-F1 | 67.04% | 80.52% | **82.80%** |
 
-> v4 与 v5 在同一份 action 平衡 test 集上对比（28 个 action 每类 ≥20 条），
-> 修复了旧 test 集中 cryptomining=0 / brute_force=2 导致的失真；
-> brute_force 0→0.840、cryptomining 0→0.919、process_inject 0.480→0.793。
-> per-action F1、长尾类分析与复现见 [`docs/EVAL_REPORT_V5.md`](docs/EVAL_REPORT_V5.md)。
+> v4/v5/v6 在同一份 action 平衡 test 集上对比（28 个 action 每类 ≥20 条，test 冻结 6,287）。
+> v6 相对 v5：macro-F1 +2.28 点，self_propagate 0.308→0.571。
+> per-action F1、长尾类分析与复现见 [`docs/EVAL_REPORT_V6.md`](docs/EVAL_REPORT_V6.md)。
 
 ### 外部公开语料（OOD，v2 旧基线，冻结评测集 27,995 条）
 

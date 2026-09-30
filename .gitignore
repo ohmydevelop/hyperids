@@ -31,6 +31,7 @@ __pycache__/
 
 # === data（gitignored，可从 corpus 重建）===
 dataset/gliclass_v2/
+dataset/gliclass_v3/
 dataset/public_raw/
 dataset/suid_variants.jsonl
 dataset/suid_aug_labeled.jsonl
@@ -49,3 +50,5 @@ private/
 # === local v5 build/backup artifacts (release assets attach separately) ===
 deploy/c_runtime/ci_assets_v4/
 deploy/c_runtime/build_v5/
+
+deploy/c_runtime/ci_assets_v5/
