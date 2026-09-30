@@ -60,20 +60,20 @@ command_and_control、exfiltration、impact。
 
 ## 模型指标
 
-### 内测（test 5,978）
+### 内测（v1.4.0，action 平衡 test 6,287）
 
-| 指标 | fp32 |
-|---|---:|
-| verdict_acc | **92.924%** |
-| action micro-Precision | **92.105%** |
-| action micro-Recall | **92.343%** |
-| action micro-F1 | **92.224%** |
-| action macro-F1 | **73.755%** |
+| 指标 | v4 | v5 |
+|---|---:|---:|
+| verdict_acc | 92.89% | **93.10%** |
+| action micro-Precision | 80.21% | **90.92%** |
+| action micro-Recall | 93.62% | **91.40%** |
+| action micro-F1 | 86.40% | **91.16%** |
+| action macro-F1 | 67.04% | **80.52%** |
 
-> 另有严格 malicious 报警口径：Precision 99.949% / Recall 94.750% / F1 97.280%；
-> suspicious + malicious 告警口径：Precision 94.795% / Recall 100% / F1 97.328%。
-> 完整口径、混淆矩阵、对抗测试和风险项见
-> [`docs/EVAL_REPORT_V3.md`](docs/EVAL_REPORT_V3.md)。
+> v4 与 v5 在同一份 action 平衡 test 集上对比（28 个 action 每类 ≥20 条），
+> 修复了旧 test 集中 cryptomining=0 / brute_force=2 导致的失真；
+> brute_force 0→0.840、cryptomining 0→0.919、process_inject 0.480→0.793。
+> per-action F1、长尾类分析与复现见 [`docs/EVAL_REPORT_V5.md`](docs/EVAL_REPORT_V5.md)。
 
 ### 外部公开语料（OOD，v2 旧基线，冻结评测集 27,995 条）
 
@@ -92,8 +92,8 @@ command_and_control、exfiltration、impact。
 | 项 | 值 |
 |---|---|
 | 参数量 | **17.6M**（词表裁剪，≤30M） |
-| INT8 ONNX 体积 | 30.2MB |
-| C 单二进制（per-channel int8） | **~18MB** |
+| INT8 权重 | **17.6MB**（per-channel int8，2D 量化 / 1D fp32） |
+| C 单二进制（per-channel int8） | **~18.4MB**（静态链接） |
 | C 运行时峰值 RSS | **~27 MiB**（<100MB） |
 | 推理速度 | ~280 ms/条（AVX2+FMA，CPU） |
 

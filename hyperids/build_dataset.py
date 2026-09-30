@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import random
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pathlib import Path
 
 from hyperids import schema
@@ -48,7 +48,9 @@ def load_corpus(corpus_dir: Path = CORPUS_LABELED) -> list[dict]:
     return rows
 
 
-def stratified_split(rows: list[dict], val_ratio: float = 0.08, test_ratio: float = 0.08, seed: int = 42):
+def stratified_split(rows: list[dict], val_ratio: float = 0.08, test_ratio: float = 0.08, seed: int = 42,
+                     min_test_per_action: int = 20):
+    """按 verdict 分层 split，再贪心补充保证每个 action 在 test 至少 min_test_per_action 条。"""
     buckets = defaultdict(list)
     for r in rows:
         buckets[r["verdict"]].append(r)
@@ -62,6 +64,22 @@ def stratified_split(rows: list[dict], val_ratio: float = 0.08, test_ratio: floa
         test += items[:n_test]
         val += items[n_test:n_test + n_val]
         train += items[n_test + n_val:]
+
+    # 贪心补充：确保每个 action 在 test 至少 min_test_per_action 条
+    test_actions = Counter(a for r in test for a in r["actions"])
+    for action in ACTIONS:
+        while test_actions[action] < min_test_per_action:
+            moved = False
+            for i, r in enumerate(train):
+                if action in r["actions"]:
+                    train.pop(i)
+                    test.append(r)
+                    test_actions[action] += 1
+                    moved = True
+                    break
+            if not moved:
+                break  # train 里没有含该 action 的样本了
+
     rng.shuffle(train)
     rng.shuffle(val)
     rng.shuffle(test)

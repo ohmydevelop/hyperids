@@ -45,3 +45,7 @@ deploy/c_runtime/ci_assets/
 # === 私有数据（NEVER commit，10.2.98.38 拉取）===
 dataset/private/
 private/
+
+# === local v5 build/backup artifacts (release assets attach separately) ===
+deploy/c_runtime/ci_assets_v4/
+deploy/c_runtime/build_v5/
