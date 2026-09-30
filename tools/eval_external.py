@@ -15,15 +15,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 from gliclass import GLiClassModel
 from transformers import AutoTokenizer
-from hyperids import schema
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from hyperids import schema  # noqa: E402
+
 MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v2"
 EVAL_DIR = ROOT / "dataset" / "external_eval"
 OUT_DIR = ROOT / "dataset" / "external_eval_results"

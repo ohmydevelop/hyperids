@@ -62,16 +62,20 @@ command_and_control、exfiltration、impact。
 
 ### 内测（test 5,978）
 
-| 指标 | fp32 | INT8（部署） |
-|---|---|---|
-| verdict_acc | **0.9244** | — |
-| action micro-F1 | **0.9205** | — |
-| action precision | 0.9394 | — |
-| action recall | 0.9023 | — |
+| 指标 | fp32 |
+|---|---:|
+| verdict_acc | **92.924%** |
+| action micro-Precision | **92.105%** |
+| action micro-Recall | **92.343%** |
+| action micro-F1 | **92.224%** |
+| action macro-F1 | **73.755%** |
 
-> INT8 与 fp32 基本无损。
+> 另有严格 malicious 报警口径：Precision 99.949% / Recall 94.750% / F1 97.280%；
+> suspicious + malicious 告警口径：Precision 94.795% / Recall 100% / F1 97.328%。
+> 完整口径、混淆矩阵、对抗测试和风险项见
+> [`docs/EVAL_REPORT_V3.md`](docs/EVAL_REPORT_V3.md)。
 
-### 外部公开语料（OOD，冻结评测集 27,995 条）
+### 外部公开语料（OOD，v2 旧基线，冻结评测集 27,995 条）
 
 | 指标 | 值 |
 |---|---|

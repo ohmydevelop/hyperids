@@ -1,0 +1,58 @@
+{
+  "model_dir": "/home/ubuntu/Works/hyperids/model/checkpoints_gpu/final_model_v3",
+  "raw_dir": "adversarial/smoke_raw",
+  "unique_candidates": 2,
+  "bypasses": 0,
+  "bypass_rate": 0.0,
+  "verdict_counts": {
+    "verdict.malicious": 2
+  },
+  "category_counts": {
+    "benign_wrapper": 1,
+    "reverse_shell": 1
+  },
+  "bypass_counts_by_category": {},
+  "bypass_counts_by_strategy": {},
+  "detected_action_counts": {
+    "action.command_and_control": 2,
+    "action.download_execute": 1,
+    "action.execute_local": 1,
+    "action.reverse_shell": 2
+  },
+  "thresholds_path": "/home/ubuntu/Works/hyperids/configs/action_thresholds.json",
+  "thresholds_used": {
+    "action.download": 0.5,
+    "action.execute_local": 0.5,
+    "action.download_execute": 0.5,
+    "action.command_and_control": 0.5,
+    "action.obfuscate": 0.5,
+    "action.file_operation": 0.5,
+    "action.process_inject": 0.5,
+    "action.network_scan": 0.5,
+    "action.brute_force": 0.5,
+    "action.reverse_shell": 0.5,
+    "action.bind_shell": 0.5,
+    "action.web_shell": 0.5,
+    "action.backdoor": 0.5,
+    "action.keylog": 0.5,
+    "action.credential_dump": 0.5,
+    "action.ransomware": 0.5,
+    "action.cryptomining": 0.5,
+    "action.exfiltrate": 0.5,
+    "action.disable_security": 0.5,
+    "action.clear_logs": 0.5,
+    "action.timestomp": 0.5,
+    "action.account_add": 0.5,
+    "action.registry_persist": 0.5,
+    "action.service_persist": 0.5,
+    "action.schedule_persist": 0.5,
+    "action.self_propagate": 0.5,
+    "action.system_probe": 0.5,
+    "action.environment_setup": 0.5
+  },
+  "max_length": 320,
+  "elapsed_seconds": 0.073,
+  "annotated_file": "adversarial/results_smoke/all_annotated.jsonl",
+  "bypass_file": "adversarial/results_smoke/bypasses.jsonl",
+  "definition": "bypass iff verdict is not verdict.malicious"
+}

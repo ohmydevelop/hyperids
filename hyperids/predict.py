@@ -38,14 +38,58 @@ class Predictor:
         tp = Path(thresholds_path)
         self.thresholds = json.loads(tp.read_text()) if tp.exists() else {}
 
-    def _scores(self, command: str) -> dict[str, float]:
-        s = "".join(f"<<LABEL>>{l}" for l in IDS) + "<<SEP>>" + command
-        enc = self.tokenizer(s, return_tensors="pt", truncation=True, max_length=320).to(self.device)
+    def _score_tokens(self, label_prefix_ids: list[int], cmd_ids: list[int]) -> dict[str, float]:
+        """对 label 前缀 + 一段命令 token 做单次推理，返回 31 维 logit。"""
+        ids = label_prefix_ids + cmd_ids + [self.tokenizer.sep_token_id]
+        ids = ids[:512]
+        input_ids = torch.tensor([ids], dtype=torch.long, device=self.device)
+        attention_mask = torch.ones_like(input_ids)
+        enc = {"input_ids": input_ids, "attention_mask": attention_mask}
         with torch.no_grad():
-            out = self.model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"],
-                             max_num_classes=len(IDS))
+            out = self.model(**enc, max_num_classes=len(IDS))
         lg = out.logits.flatten()
         return {l: float(lg[j].item()) for j, l in enumerate(IDS)}
+
+    def _scores(self, command: str) -> dict[str, float]:
+        """分段扫描：超长命令滑动窗口，任一段命中恶意即算数。"""
+        prefix = "".join(f"<<LABEL>>{l}" for l in IDS) + "<<SEP>>"
+        label_prefix_ids = self.tokenizer(prefix, add_special_tokens=False)["input_ids"]
+        cmd_ids = self.tokenizer(command, add_special_tokens=False)["input_ids"]
+        avail = 512 - len(label_prefix_ids) - 1  # -1 for [SEP]
+
+        if len(cmd_ids) <= avail:
+            return self._score_tokens(label_prefix_ids, cmd_ids)
+
+        # 超长：滑动窗口（窗口 120 token，重叠 30）
+        window, stride = 120, 30
+        segments = []
+        start = 0
+        while start < len(cmd_ids):
+            segments.append(cmd_ids[start:start + window])
+            if start + window >= len(cmd_ids):
+                break
+            start += window - stride
+        # 尾部补一段（确保尾部不被漏）
+        if len(cmd_ids) > window and segments[-1][-1] != cmd_ids[-1]:
+            segments.append(cmd_ids[-window:])
+
+        # action 取 max；verdict 取「恶意概率最高的段」
+        merged = {l: -1e9 for l in IDS}
+        best_verdict = None
+        best_mal_prob = -1.0
+        for seg in segments:
+            sc = self._score_tokens(label_prefix_ids, seg)
+            v_logits = [sc[v] for v in VERDICT]
+            vp = torch.softmax(torch.tensor(v_logits), dim=0)
+            mal_prob = float(vp[2].item())
+            if mal_prob > best_mal_prob:
+                best_mal_prob = mal_prob
+                best_verdict = sc
+            for a in ACTIONS:
+                merged[a] = max(merged[a], sc[a])
+        for v in VERDICT:
+            merged[v] = best_verdict[v]  # verdict 用最恶意段的 logit
+        return merged
 
     def predict(self, command: str) -> dict:
         scores = self._scores(command)

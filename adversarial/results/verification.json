@@ -1,0 +1,84 @@
+{
+  "status": "verified",
+  "errors": [],
+  "error_count": 0,
+  "requirements": {
+    "unique_adversarial_samples": 3620,
+    "candidate_count_gte_1000": true,
+    "non_malicious_bypasses": 2636,
+    "non_malicious_bypasses_gte_1000": true,
+    "strict_benign_bypasses": 1785,
+    "strict_benign_bypasses_gte_1000": true,
+    "all_candidates_have_detection": true,
+    "model_matches_current_v3": true
+  },
+  "verdict_counts": {
+    "verdict.benign": 1785,
+    "verdict.suspicious": 851,
+    "verdict.malicious": 984
+  },
+  "split_counts": {
+    "bypasses": 2636,
+    "benign_bypasses": 1785,
+    "suspicious_evasions": 851,
+    "detected_malicious": 984
+  },
+  "files": {
+    "adversarial/raw/dl_exec.jsonl": {
+      "sha256": "ccda5ac1e2dce3c84e9fb130e4ca7c3b6c4b6932d9aa5555721b558c27e80120",
+      "bytes": 129666
+    },
+    "adversarial/raw/impact_exfil.jsonl": {
+      "sha256": "a8541d0a8abe6ac3b7485d5cc60a0ec36369a69801ef41b42a29c548f73559df",
+      "bytes": 182358
+    },
+    "adversarial/raw/persist_privesc.jsonl": {
+      "sha256": "d5ad9c0f2cc5f7b8c8877a2bca20150218d123a3ebcbab51435d8000c56ce3e2",
+      "bytes": 202362
+    },
+    "adversarial/raw/r2_truncation_multi.jsonl": {
+      "sha256": "b5fbd770fb68229530d758db33bde7b2bfb61777ab444e4b7ce0295bc60fb855",
+      "bytes": 291292
+    },
+    "adversarial/raw/r2_wrapper_variants.jsonl": {
+      "sha256": "04478226887bf1c40f4e642d09d16f6355e4facd2fdef9d459804c252f77e3cd",
+      "bytes": 203899
+    },
+    "adversarial/raw/r3_long_prefix.jsonl": {
+      "sha256": "36234b8c8436fde8ecdb452a1ed7182ee446533e1b8b6881b3fdcd22ae6cbf13",
+      "bytes": 11620138
+    },
+    "adversarial/raw/rs_c2.jsonl": {
+      "sha256": "c3156e17331ab3c8a748b49d873ccd524deb61fbbdb91f77e1949196102002e0",
+      "bytes": 208485
+    },
+    "adversarial/raw/session_web.jsonl": {
+      "sha256": "8c9a541a226f91d4f0da548319a9b1ce1e03abac4e04d5effdfcb8338e78c754",
+      "bytes": 237643
+    },
+    "adversarial/results/all_annotated.jsonl": {
+      "sha256": "c24bc62f6e83caa92d7a54032933185c502adaec5f8f039f8b3c09b25a7d1f64",
+      "bytes": 22732340
+    },
+    "adversarial/results/benign_bypasses.jsonl": {
+      "sha256": "362990382db4ce67dde18b45d25123cf96da446e14a9b9953c90313d12970def",
+      "bytes": 16472289
+    },
+    "adversarial/results/bypasses.jsonl": {
+      "sha256": "b974878e3b0805d81f63375056b4546b6104d706c61be9d224e7961bc1d0c8cb",
+      "bytes": 19280457
+    },
+    "adversarial/results/detected_malicious.jsonl": {
+      "sha256": "6dd9456e831bf90c40e85e915a46c2a509c14dd98d574f15ca7aa2d52b765b46",
+      "bytes": 3451883
+    },
+    "adversarial/results/summary.json": {
+      "sha256": "cce77de2dadd949612c98efbebb937857b8ae35b3693c9cd762ab10260f724ef",
+      "bytes": 10145
+    },
+    "adversarial/results/suspicious_evasions.jsonl": {
+      "sha256": "fc84b765809fdd86ef0134b8da4097fb843d1d25e99b1c8597b6a6b88cdc9cf9",
+      "bytes": 2808168
+    }
+  }
+}

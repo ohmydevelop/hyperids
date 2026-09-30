@@ -1,4 +1,7 @@
-# HyperIDs 模型卡（最新 / v2）
+# HyperIDs 模型卡（v2 基线）
+
+> 当前部署候选模型为 `final_model_v3`。本文保留 v2 基线信息；
+> v3 的完整测试、指标口径和交接结论见 [`EVAL_REPORT_V3.md`](EVAL_REPORT_V3.md)。
 
 ## 概览
 

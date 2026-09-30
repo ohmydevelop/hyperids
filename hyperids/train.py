@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 from transformers import AutoTokenizer, AutoConfig
@@ -26,7 +27,7 @@ SAVE_DIR = ROOT / "model" / "checkpoints"
 ENCODER = "prajjwal1/bert-small"
 ARCH = "uni-encoder"
 PROBLEM = "multi_label_classification"
-MAX_LENGTH = 320
+MAX_LENGTH = 512
 MAX_LABELS = 31
 
 
@@ -57,7 +58,7 @@ def build_model(device, focal_alpha=-1.0, focal_gamma=-1.0):
         layer_wise=False,
         encoder_layer_id=-1,
         dropout=0.3,
-        shuffle_labels=True,
+        shuffle_labels=False,
         use_segment_embeddings=False,
         focal_loss_alpha=focal_alpha,
         focal_loss_gamma=focal_gamma,
@@ -75,6 +76,32 @@ def build_model(device, focal_alpha=-1.0, focal_gamma=-1.0):
     n = sum(p.numel() for p in model.parameters())
     print(f"model params: {n/1e6:.2f}M  (encoder={ENCODER})")
     return model, tokenizer
+
+
+
+class VerdictWeightedTrainer(Trainer):
+    """对 verdict.malicious 正样本加权的 Trainer（提升恶意召回）。
+
+    shuffle_labels=False 时 labels 按 sorted(schema ids) 排列：
+      action.* (0..27) + verdict.benign(28) + verdict.malicious(29) + verdict.suspicious(30)
+    """
+    def __init__(self, malicious_weight=1.3, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.malicious_idx = sorted(schema.all_label_ids()).index("verdict.malicious")
+        self.malicious_weight = malicious_weight
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        labels = inputs.pop("labels", None)
+        inputs.pop("labels_text", None)
+        inputs.pop("input_texts", None)
+        outputs = model(**inputs)
+        logits = outputs.logits
+        weights = torch.ones_like(labels)
+        # verdict.malicious 正样本加权
+        weights[:, self.malicious_idx] = torch.where(
+            labels[:, self.malicious_idx] > 0.5, self.malicious_weight, 1.0)
+        loss = F.binary_cross_entropy_with_logits(logits, labels, weight=weights)
+        return (loss, outputs) if return_outputs else loss
 
 
 def compute_metrics(p):
@@ -176,7 +203,8 @@ def main():
         use_cpu=(device == "cpu"),
     )
 
-    trainer = Trainer(
+    trainer = VerdictWeightedTrainer(
+        malicious_weight=1.3,
         model=model,
         args=training_args,
         train_dataset=train_ds,

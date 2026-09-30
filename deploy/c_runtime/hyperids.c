@@ -38,7 +38,7 @@ typedef float f32;
 #define CFG_LAYERS  4
 #define CFG_HEADS   8
 #define CFG_INTER   2048
-#define CFG_MAXSEQ  320
+#define CFG_MAXSEQ  512
 #define CFG_EPS     1e-12f
 #define ATT_SCALE   0.125f
 
@@ -147,15 +147,11 @@ static int tok_cmd(const char *text, int *out, int cap) {
     return n;
 }
 
-static int build_input(const char *cmd, int *ids, int cap) {
+#define MAX_CMD_TOK 4096
+
+static int build_input(const int *cmd_tok, int cn, int *ids, int cap) {
     int n = 0;
     for (int i = 0; i < LABEL_PREFIX_LEN && n < cap; i++) ids[n++] = label_prefix_tokens[i];
-    char cmdbuf[1024];
-    size_t cl = strlen(cmd);
-    if (cl >= sizeof cmdbuf) cl = sizeof cmdbuf - 1;
-    memcpy(cmdbuf, cmd, cl); cmdbuf[cl] = 0;
-    int cmd_tok[CFG_MAXSEQ];
-    int cn = tok_cmd(cmdbuf, cmd_tok, CFG_MAXSEQ);
     for (int i = 0; i < cn && n < cap; i++) ids[n++] = cmd_tok[i];
     if (n < cap) ids[n++] = SEP_ID;
     return n;
@@ -340,12 +336,11 @@ static int ws_alloc(struct Workspace *w) {
     return 0;
 }
 
-static int forward(const char *cmd, float *logits) {
+static int forward_ids(int *ids, int nn, float *logits) {
     struct Model *M = &g_model;
     struct Workspace *w = g_ws;
     const int S = w->S, H = w->H, NH = w->NH, HD = w->HD, MID = w->MID;
 
-    int nn = build_input(cmd, w->ids, S);
     if (nn < 2) return -1;
 
     float *hidden = w->hidden, *buf2 = w->buf2, *tmp = w->tmp;
@@ -446,6 +441,82 @@ static int forward(const char *cmd, float *logits) {
     }
     free(class_emb); free(pooled); free(tp); free(cp);
     return nn;
+}
+
+
+/* 分段扫描：超长命令滑动窗口，任一段命中恶意即告警。 */
+static int forward(const char *cmd, float *logits) {
+    struct Workspace *w = g_ws;
+    int cmd_tok[MAX_CMD_TOK];
+    int cn = tok_cmd(cmd, cmd_tok, MAX_CMD_TOK);
+    int avail = CFG_MAXSEQ - LABEL_PREFIX_LEN - 1;
+    for (int k = 0; k < N_LABELS; k++) logits[k] = -1e30f;
+
+    if (cn <= avail) {
+        int nn = build_input(cmd_tok, cn, w->ids, CFG_MAXSEQ);
+        return forward_ids(w->ids, nn, logits);
+    }
+
+    int window = avail < 120 ? avail : 120;
+    int stride = window - 30;
+    if (stride < 1) stride = 1;
+
+    /* verdict：取恶意 softmax 概率最高的段；action：取各段 max */
+    float best_verdict[3] = {-1e30f, -1e30f, -1e30f};
+    float best_mal = -1.0f;
+
+    int start = 0;
+    while (start < cn) {
+        int seg_len = (cn - start < window) ? (cn - start) : window;
+        int nn = build_input(cmd_tok + start, seg_len, w->ids, CFG_MAXSEQ);
+        float seg_logits[N_LABELS];
+        if (forward_ids(w->ids, nn, seg_logits) >= 0) {
+            /* verdict softmax -> malicious prob */
+            double mx = seg_logits[0];
+            if (seg_logits[1] > mx) mx = seg_logits[1];
+            if (seg_logits[2] > mx) mx = seg_logits[2];
+            double e0 = exp((double)seg_logits[0] - mx);
+            double e1 = exp((double)seg_logits[1] - mx);
+            double e2 = exp((double)seg_logits[2] - mx);
+            float mal_prob = (float)(e2 / (e0 + e1 + e2));
+            if (mal_prob > best_mal) {
+                best_mal = mal_prob;
+                best_verdict[0] = seg_logits[0];
+                best_verdict[1] = seg_logits[1];
+                best_verdict[2] = seg_logits[2];
+            }
+            for (int k = 3; k < N_LABELS; k++)
+                if (seg_logits[k] > logits[k]) logits[k] = seg_logits[k];
+        }
+        if (start + window >= cn) break;
+        start += stride;
+    }
+    /* 尾部段（确保恶意 payload 不被漏） */
+    if (cn > window) {
+        int nn = build_input(cmd_tok + cn - window, window, w->ids, CFG_MAXSEQ);
+        float seg_logits[N_LABELS];
+        if (forward_ids(w->ids, nn, seg_logits) >= 0) {
+            double mx = seg_logits[0];
+            if (seg_logits[1] > mx) mx = seg_logits[1];
+            if (seg_logits[2] > mx) mx = seg_logits[2];
+            double e0 = exp((double)seg_logits[0] - mx);
+            double e1 = exp((double)seg_logits[1] - mx);
+            double e2 = exp((double)seg_logits[2] - mx);
+            float mal_prob = (float)(e2 / (e0 + e1 + e2));
+            if (mal_prob > best_mal) {
+                best_mal = mal_prob;
+                best_verdict[0] = seg_logits[0];
+                best_verdict[1] = seg_logits[1];
+                best_verdict[2] = seg_logits[2];
+            }
+            for (int k = 3; k < N_LABELS; k++)
+                if (seg_logits[k] > logits[k]) logits[k] = seg_logits[k];
+        }
+    }
+    logits[0] = best_verdict[0];
+    logits[1] = best_verdict[1];
+    logits[2] = best_verdict[2];
+    return cn;
 }
 
 /* ---- output ---- */

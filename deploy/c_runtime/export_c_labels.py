@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 from hyperids import schema
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v3"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v4"
 OUT = ROOT / "deploy" / "c_runtime" / "hyperids_labels.h"
 
 IDS = schema.all_label_ids()
