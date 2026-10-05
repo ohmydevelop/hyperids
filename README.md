@@ -60,19 +60,19 @@ command_and_control、exfiltration、impact。
 
 ## 模型指标
 
-### 内测（v1.5.0，action 平衡 test 6,287）
+### 内测（v1.5.1，action 平衡 test 6,287）
 
-| 指标 | v4 | v5 | v6 |
-|---|---:|---:|---:|
-| verdict_acc | 92.89% | 93.10% | 93.02% |
-| action micro-Precision | 80.21% | 90.92% | **91.05%** |
-| action micro-Recall | 93.62% | 91.40% | **92.06%** |
-| action micro-F1 | 86.40% | 91.16% | **91.55%** |
-| action macro-F1 | 67.04% | 80.52% | **82.80%** |
+| 指标 | v4 | v5 | v6 | v7 |
+|---|---:|---:|---:|---:|
+| verdict_acc | 92.89% | 93.10% | 93.02% | 92.78% |
+| action micro-Precision | 80.21% | 90.92% | 91.05% | **91.09%** |
+| action micro-Recall | 93.62% | 91.40% | 92.06% | 91.57% |
+| action micro-F1 | 86.40% | 91.16% | 91.55% | 91.33% |
+| action macro-F1 | 67.04% | 80.52% | 82.80% | **83.31%** |
 
-> v4/v5/v6 在同一份 action 平衡 test 集上对比（28 个 action 每类 ≥20 条，test 冻结 6,287）。
-> v6 相对 v5：macro-F1 +2.28 点，self_propagate 0.308→0.571。
-> per-action F1、长尾类分析与复现见 [`docs/EVAL_REPORT_V6.md`](docs/EVAL_REPORT_V6.md)。
+> v4/v5/v6/v7 在同一份 action 平衡 test 集上对比（28 个 action 每类 ≥20 条，test 冻结 6,287）。
+> v7 相对 v6：macro-F1 83.31%（新高），self_propagate/keylog/ransomware 继续提升。
+> per-action F1、长尾类分析与复现见 [`docs/EVAL_REPORT_V7.md`](docs/EVAL_REPORT_V7.md)。
 
 ### 外部公开语料（OOD，v2 旧基线，冻结评测集 27,995 条）
 

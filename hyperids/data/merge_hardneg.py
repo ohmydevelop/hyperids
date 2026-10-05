@@ -44,11 +44,6 @@ def main():
     all_labels = list(schema.all_label_ids())
     action_ids = set(schema.action_ids())
 
-    jev_by_text = {}
-    for line in Path(args.labeled).read_text().splitlines():
-        d = json.loads(line)
-        jev_by_text[d["text"]] = d
-
     new_samples = []
     dropped_dup = 0
     skipped_nojev = 0
@@ -73,6 +68,10 @@ def main():
         (out / "labels_desc.json").write_text((src / "labels_desc.json").read_text())
         print(f"prepared hardneg: {len(new_samples)} (dup={dropped_dup}); train {len(train)} -> {len(train)+len(aug_train)}; test frozen {len(test)}")
         return
+    jev_by_text = {}
+    for line in Path(args.labeled).read_text().splitlines():
+        d = json.loads(line)
+        jev_by_text[d["text"]] = d
     for line in Path(args.arb).read_text().splitlines():
         r = json.loads(line)
         if r.get("gt") != "malicious" or r.get("arb_verdict") != "malicious":
