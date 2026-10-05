@@ -11,7 +11,7 @@
 set -e
 
 REPO="ohmydevelop/hyperids"
-DEFAULT_VERSION="v1.5.1"
+DEFAULT_VERSION="v1.5.2"
 BIN_NAME="hyperids"
 ARCH="$(uname -m)"
 OS="$(uname -s)"
