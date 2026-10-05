@@ -70,10 +70,15 @@ def chat(
             last_err = e
             # 4xx (invalid model etc.) won't fix itself — fail fast
             if e.code < 500:
+                e.close()
                 raise
+            e.close()
             time.sleep(1.0 * (2**attempt))
         except Exception as e:  # timeouts, conn errors
             last_err = e
+            close = getattr(e, "close", None)
+            if close:
+                close()
             time.sleep(0.5 * (2**attempt))
     raise RuntimeError(f"LLM call failed after {retries+1} tries: {last_err}")
 
