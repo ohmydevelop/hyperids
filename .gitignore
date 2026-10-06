@@ -35,6 +35,7 @@ dataset/gliclass_v3/
 dataset/gliclass_v4/
 dataset/gliclass_v5/
 dataset/gliclass_v6/
+dataset/gliclass_v7_relabel/
 dataset/public_raw/
 dataset/suid_variants.jsonl
 dataset/suid_aug_labeled.jsonl
