@@ -45,6 +45,7 @@ def micro(y_true, y_pred):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model_dir", type=str, default=str(MODEL_DIR))
+    ap.add_argument("--data_dir", type=str, default=str(DATA_DIR))
     ap.add_argument("--split", type=str, default="test")
     ap.add_argument("--threshold", type=float, default=0.5)
     ap.add_argument("--thresholds", type=str, default=None, help="path to per-action thresholds json")
@@ -67,7 +68,7 @@ def main():
             print(f"\n{c}\n  verdict  : {verdict}\n  actions  : {acts}\n  tactics  : {att['tactics']}\n  techniques: {att['techniques']}")
         return
 
-    data = json.loads((Path(DATA_DIR) / f"{args.split}.json").read_text())
+    data = json.loads((Path(args.data_dir) / f"{args.split}.json").read_text())
     if args.limit:
         data = data[: args.limit]
     print(f"evaluating {len(data)} {args.split} samples on {device} ...", flush=True)
