@@ -61,3 +61,5 @@ deploy/c_runtime/ci_assets_v6/
 deploy/c_runtime/ci_assets_v7/
 deploy/c_runtime/ci_assets_v7_current/
 deploy/c_runtime/ci_assets_v9/
+dataset/gliclass_v8_cleanws/
+dataset/gliclass_v9_ws/
