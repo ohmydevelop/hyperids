@@ -51,5 +51,5 @@ cargo build --release
 ./target/release/hyperids --bench
 ```
 
-> 注意：当前 tokenizer 是纯 Rust 的 ASCII/WordPiece 实现，与 C 运行时保持一致；
+> 注意：当前 tokenizer 是纯 Rust 的 ASCII/WordPiece 实现；
 > 对非 ASCII shell 命令需要进一步按 HuggingFace `BertTokenizer` 语义补全。

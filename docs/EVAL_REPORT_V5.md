@@ -91,8 +91,7 @@ python -m hyperids.train --data_dir dataset/gliclass_v2 \
 # 评估（action 平衡 test）
 python -m hyperids.eval --model_dir model/checkpoints_gpu/final_model_v5 --split test
 
-# 导出 INT8 权重 + 编译 C 单二进制
-PYTHONPATH=. python deploy/c_runtime/export_c_weights.py
-PYTHONPATH=. python deploy/c_runtime/export_c_labels.py
-cd deploy/c_runtime && make
+# 导出 ONNX + INT8 量化，供 Rust 发布版构建
+python deploy/export_onnx.py --model_dir model/checkpoints_gpu/final_model_v5
+python deploy/quantize_int8.py --in model/checkpoints_gpu/final_model_v5/model.onnx
 ```

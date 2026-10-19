@@ -43,25 +43,13 @@ dataset/suid_aug_labeled.jsonl
 # === 外部评测衍生结果（regenerate via tools/eval_external.py）===
 dataset/external_eval_results/
 
-# === C 单二进制构建产物（regenerate via deploy/c_runtime/Makefile）===
-deploy/c_runtime/build/
-deploy/c_runtime/build_omp/
-deploy/c_runtime/ci_assets/
 
 # === 私有数据（NEVER commit，10.2.98.38 拉取）===
 dataset/private/
 private/
 
-# === local v5 build/backup artifacts (release assets attach separately) ===
-deploy/c_runtime/ci_assets_v4/
-deploy/c_runtime/build_v5/
 
-deploy/c_runtime/ci_assets_v5/
 
-deploy/c_runtime/ci_assets_v6/
-deploy/c_runtime/ci_assets_v7/
-deploy/c_runtime/ci_assets_v7_current/
-deploy/c_runtime/ci_assets_v9/
 dataset/gliclass_v8_cleanws/
 dataset/gliclass_v9_ws/
 dataset/gliclass_v12_base/
@@ -89,5 +77,3 @@ tools/eval_kestrel_private.py
 tools/extract_private_shell.py
 tools/scan_private_shell_fpr.py
 tools/watch_vnext_train.py
-deploy/c_runtime/export_c_weights_v6.py
-deploy/c_runtime/export_c_weights_v7.py

@@ -20,11 +20,11 @@ export:
 	python deploy/quantize_int8.py --in model/checkpoints_gpu/final_model_v2/model.onnx \
 		--out model/checkpoints_gpu/final_model_v2/model_int8.onnx
 
-# 5) 编译 C 单二进制（静态，模型权重内嵌）
+# 5) 编译 Rust 单文件发布版（模型/词表已内嵌）
 release:
-	cd deploy/c_runtime && make
+	cd deploy/ort_rust_demo && cargo build --release
 
 rebuild: data train
 
 clean:
-	rm -rf deploy/c_runtime/build deploy/c_runtime/ci_assets
+	cd deploy/ort_rust_demo && cargo clean

@@ -69,7 +69,7 @@
 |---|---|
 | INT8 ONNX 体积 | **30.2MB** |
 | fp32 ONNX | 118MB（external data） |
-| C 运行时峰值 RSS | fp32 114.7MB / **INT8 96.2MB（<100MB ✅）** |
+| Rust 发布版 | 模型内嵌；Linux x86_64 可 `statically linked` |
 | INT8 vs fp32 | 基本无损（见上表） |
 
 ## 产物位置

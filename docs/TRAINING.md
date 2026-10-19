@@ -10,7 +10,7 @@ make data      # corpus → gliclass_v2（31 标签训练集）
 make train     # GPU 训练（Lightning L4）
 make eval      # 本地评估
 make export    # ONNX + INT8
-make release   # C 单二进制（静态，权重内嵌）
+make release   # Rust 单文件发布版（模型/词表内嵌）
 ```
 
 ## 完整链路
@@ -23,8 +23,8 @@ dataset/gliclass_v2/          (31 标签 train/val/test)
 model/checkpoints/final_model_v2/
    ↓  deploy/export_onnx.py + quantize_int8.py
 model_int8.onnx (30.2MB)
-   ↓  deploy/c_runtime/Makefile
-hyperids 单二进制 (statically linked)
+   ↓  deploy/ort_rust_demo/cargo build --release
+hyperids 单文件发布版
 ```
 
 ## 训练参数

