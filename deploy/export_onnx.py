@@ -10,11 +10,11 @@ import torch
 import torch.nn as nn
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v2"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v9"
 OUT_ONNX = MODEL_DIR / "model.onnx"
 
 CHUNK = 31
-SEQ_LEN = 320
+SEQ_LEN = 256
 
 
 class LogitsWrapper(nn.Module):
@@ -44,16 +44,28 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.model_dir)
     IDS = all_label_ids()
 
-    # build one sample input with exactly `chunk` labels
+    # Match hyperids/predict.py exactly:
+    #   [<<LABEL>>id ... <<SEP>>] + tokenized command + [SEP], padded to seq_len.
+    # No [CLS] and no trailing [SEP] are added by the tokenizer.
     labels = IDS[: args.chunk]
-    s = "".join(f"<<LABEL>>{l}" for l in labels) + "<<SEP>>" + "sample command"
-    enc = tok(s, return_tensors="pt", truncation=True, max_length=args.seq_len,
-              padding="max_length")
-    input_ids = enc["input_ids"]
-    attention_mask = enc["attention_mask"]
-    print("input shape:", tuple(input_ids.shape), "seq_len:", args.seq_len)
+    prefix = "".join(f"<<LABEL>>{l}" for l in labels) + "<<SEP>>"
+    prefix_ids = tok(prefix, add_special_tokens=False)["input_ids"]
+    sample_ids = tok("sample command", add_special_tokens=False)["input_ids"]
+    ids = (prefix_ids + sample_ids + [tok.sep_token_id])[: args.seq_len]
+    pad_len = args.seq_len - len(ids)
+    input_ids = torch.tensor([ids + [tok.pad_token_id] * pad_len], dtype=torch.long)
+    attention_mask = torch.tensor([[1] * len(ids) + [0] * pad_len], dtype=torch.long)
+    print("input shape:", tuple(input_ids.shape), "seq_len:", args.seq_len, "real_tokens:", len(ids))
 
-    wrapped = LogitsWrapper(model)
+    class AlignedWrapper(nn.Module):
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+        def forward(self, input_ids, attention_mask):
+            return self.model(input_ids=input_ids, attention_mask=attention_mask,
+                              max_num_classes=args.chunk).logits
+
+    wrapped = AlignedWrapper(model)
     with torch.no_grad():
         logits = wrapped(input_ids, attention_mask)
     print("logits shape (torch):", tuple(logits.shape))
@@ -67,6 +79,7 @@ def main():
         dynamic_axes={"input_ids": {0: "batch"}, "attention_mask": {0: "batch"}},
         opset_version=18,
         do_constant_folding=True,
+        dynamo=False,
     )
     print(f"→ {args.out}")
 

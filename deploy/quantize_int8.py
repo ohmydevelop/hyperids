@@ -7,8 +7,8 @@ import onnxruntime as ort
 from onnxruntime.quantization import quantize_dynamic, QuantType
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_v2" / "model.onnx"
-OUT_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_v2" / "model_int8.onnx"
+MODEL_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_v9" / "model.onnx"
+OUT_ONNX = ROOT / "model" / "checkpoints_gpu" / "final_model_v9" / "model_int8.onnx"
 
 
 def main():
@@ -24,8 +24,11 @@ def main():
         weight_type=QuantType.QInt8,
         extra_options={"EnableSubgraph": True},
     )
-    sz = Path(args.out).stat().st_size + Path(args.out + ".data").stat().st_size
-    print(f"quantized ONNX → {args.out}  ({sz/1e6:.1f}MB incl. external data)")
+    onnx_sz = Path(args.out).stat().st_size
+    data_path = Path(args.out + ".data")
+    data_sz = data_path.stat().st_size if data_path.exists() else 0
+    sz = onnx_sz + data_sz
+    print(f"quantized ONNX → {args.out}  ({sz/1e6:.1f}MB total; onnx={onnx_sz/1e6:.1f}MB, data={data_sz/1e6:.1f}MB)")
     print("NOTE: embeddings (Gather) stay fp32; MatMul weights -> int8.")
 
 

@@ -1,0 +1,130 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install p7zip
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+      - name: Download static ONNX Runtime
+        run: |
+          curl -fL --retry 3 -o /tmp/ort.7z https://github.com/RapidAI/OnnxruntimeBuilder/releases/download/1.23.2/onnxruntime-v1.23.2-ubuntu-22.04-amd64-static.7z
+          7z x -y -o/tmp/ort /tmp/ort.7z >/dev/null
+      - name: Build
+        run: |
+          ORT_LIB_LOCATION=/tmp/ort/onnxruntime-v1.23.2-ubuntu-22.04-amd64-static/lib \
+          RUSTFLAGS='-C target-feature=+crt-static' \
+          cargo build --release --manifest-path deploy/ort_rust_demo/Cargo.toml
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp deploy/ort_rust_demo/target/release/hyperids dist/
+          tar -czf hyperids-linux-x86_64.tar.gz -C dist hyperids
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: hyperids-linux-x86_64.tar.gz
+
+  linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build (dynamic ORT shared)
+        run: |
+          RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN' \
+          cargo build --release --manifest-path deploy/ort_rust_demo/Cargo.toml \
+            --features ort/download-binaries,ort/copy-dylibs
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp -RL deploy/ort_rust_demo/target/release/hyperids dist/
+          cp -RL deploy/ort_rust_demo/target/release/libonnxruntime* dist/ 2>/dev/null || true
+          tar -czf hyperids-linux-aarch64.tar.gz -C dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64
+          path: hyperids-linux-aarch64.tar.gz
+
+  macos-x86_64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install sevenzip
+        run: brew install sevenzip
+      - name: Download static ONNX Runtime
+        run: |
+          curl -fL --retry 3 -o /tmp/ort.7z https://github.com/RapidAI/OnnxruntimeBuilder/releases/download/1.23.2/onnxruntime-v1.23.2-macos-13-x86_64-static.7z
+          7zz x -y -o/tmp/ort /tmp/ort.7z >/dev/null
+      - name: Build
+        run: |
+          ORT_LIB_LOCATION=/tmp/ort/onnxruntime-v1.23.2-macos-13-x86_64-static/lib \
+          cargo build --release --manifest-path deploy/ort_rust_demo/Cargo.toml
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp deploy/ort_rust_demo/target/release/hyperids dist/
+          tar -czf hyperids-darwin-x86_64.tar.gz -C dist hyperids
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darwin-x86_64
+          path: hyperids-darwin-x86_64.tar.gz
+
+  macos-aarch64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install sevenzip
+        run: brew install sevenzip
+      - name: Download static ONNX Runtime
+        run: |
+          curl -fL --retry 3 -o /tmp/ort.7z https://github.com/RapidAI/OnnxruntimeBuilder/releases/download/1.23.2/onnxruntime-v1.23.2-macos-14-arm64-static.7z
+          7zz x -y -o/tmp/ort /tmp/ort.7z >/dev/null
+      - name: Build
+        run: |
+          ORT_LIB_LOCATION=/tmp/ort/onnxruntime-v1.23.2-macos-14-arm64-static/lib \
+          cargo build --release --manifest-path deploy/ort_rust_demo/Cargo.toml
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp deploy/ort_rust_demo/target/release/hyperids dist/
+          tar -czf hyperids-darwin-aarch64.tar.gz -C dist hyperids
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darwin-aarch64
+          path: hyperids-darwin-aarch64.tar.gz
+
+  release:
+    needs: [linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+      - name: Collect artifacts
+        run: |
+          mkdir -p out
+          cp release-assets/*/*.tar.gz out/
+          cp install.sh out/
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" --generate-notes

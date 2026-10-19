@@ -45,6 +45,7 @@ dataset/external_eval_results/
 
 # === C 单二进制构建产物（regenerate via deploy/c_runtime/Makefile）===
 deploy/c_runtime/build/
+deploy/c_runtime/build_omp/
 deploy/c_runtime/ci_assets/
 
 # === 私有数据（NEVER commit，10.2.98.38 拉取）===
@@ -65,3 +66,28 @@ dataset/gliclass_v8_cleanws/
 dataset/gliclass_v9_ws/
 dataset/gliclass_v12_base/
 dataset/gliclass_v12/
+# === vNext generated (rebuild via hyperids.vnext) ===
+dataset/vnext/
+
+# Rust demo build artifacts
+deploy/ort_rust_demo/target/
+
+# Rust demo release-embedded model/vocab (required at compile time)
+!deploy/ort_rust_demo/model_int8.onnx
+!deploy/ort_rust_demo/vocab.txt
+
+# === experimental / private evaluation artifacts (not part of public release) ===
+adversarial/labeled.jsonl
+adversarial/runs/
+hyperids/vnext/
+hyperids/label_schema_vnext.yaml
+docs/VNEXT.md
+docs/VNEXT_FULL_TRAIN.md
+scripts/gpu_train_vnext.py
+tools/eval_private_frozen.py
+tools/eval_kestrel_private.py
+tools/extract_private_shell.py
+tools/scan_private_shell_fpr.py
+tools/watch_vnext_train.py
+deploy/c_runtime/export_c_weights_v6.py
+deploy/c_runtime/export_c_weights_v7.py

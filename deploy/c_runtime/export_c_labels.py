@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 from hyperids import schema
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v4"
+MODEL_DIR = ROOT / "model" / "checkpoints_gpu" / "final_model_v9"
 OUT = ROOT / "deploy" / "c_runtime" / "hyperids_labels.h"
 
 IDS = schema.all_label_ids()
@@ -16,10 +16,11 @@ ACTIONS = schema.action_ids()
 
 def main():
     tok = AutoTokenizer.from_pretrained(str(MODEL_DIR), add_prefix_space=True)
-    # tokenize the label prefix WITHOUT special tokens, then prepend [CLS].
-    # (the trailing [SEP] is appended after the command at inference time)
+    # Align with hyperids/predict.py and tools/eval_private_frozen.py:
+    # no [CLS]; the prefix is label markers only, and [SEP] is appended
+    # after the command at inference time.
     prefix_s = "".join(f"<<LABEL>>{l}" for l in IDS) + "<<SEP>>"
-    ids = [tok.cls_token_id] + tok(prefix_s, add_special_tokens=False)["input_ids"]
+    ids = tok(prefix_s, add_special_tokens=False)["input_ids"]
     cls_pos = [i for i, t in enumerate(ids) if t == tok.convert_tokens_to_ids("<<LABEL>>")]
     assert len(cls_pos) == 31, f"expected 31 class tokens, got {len(cls_pos)}"
     sep_pos = [i for i, t in enumerate(ids) if t == tok.convert_tokens_to_ids("<<SEP>>")]

