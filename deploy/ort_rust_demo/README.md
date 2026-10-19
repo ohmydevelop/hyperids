@@ -53,3 +53,14 @@ cargo build --release
 
 > 注意：当前 tokenizer 是纯 Rust 的 ASCII/WordPiece 实现；
 > 对非 ASCII shell 命令需要进一步按 HuggingFace `BertTokenizer` 语义补全。
+
+## 性能指标
+
+| 线程数 | 单条延迟 |
+|---:|---:|
+| 1 线程 | ~21.3 ms/条 |
+| 2 线程 | ~13.9 ms/条 |
+| 4 线程 | ~8.9 ms/条 |
+| 8 线程 | ~5.6 ms/条 |
+
+峰值 RSS：1 线程 ~78MB，多线程 ~82MB。
