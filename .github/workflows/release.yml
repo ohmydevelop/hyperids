@@ -48,7 +48,7 @@ jobs:
         run: |
           RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN' \
           cargo build --release --manifest-path deploy/ort_rust_demo/Cargo.toml \
-            --features ort/download-binaries,ort/copy-dylibs
+            --features ort/download-binaries,ort/copy-dylibs,ort/tls-rustls
       - name: Package
         run: |
           mkdir -p dist
